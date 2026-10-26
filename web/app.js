@@ -2558,6 +2558,9 @@ function setupHeroFx() {
   const COLORS = ["#7fd1a8", "#f2c14e", "#ffffff", "#8ec5ff", "#f29e8e", "#c3a6ff"];
   const mouse = { x: 0.3, y: 0.4, tx: 0.3, ty: 0.4, on: 0, ton: 0 };
   let W = 0, H = 0, blocks = [], raf = 0, last = 0, visible = true;
+  const pulses = []; // {x, y, t0, id}: rings spreading from a click
+  let pulseId = 0;
+  const PULSE_SPEED = 620, PULSE_LIFE = 1.1; // px per second, seconds
 
   const block = (anywhere) => {
     const z = 0.35 + Math.random() * 0.65; // depth: nearer blocks are bigger, rise faster and move more with the mouse
@@ -2566,6 +2569,7 @@ function setupHeroFx() {
       w: (28 + Math.random() * 40) * z, h: (16 + Math.random() * 44) * z,
       c: COLORS[Math.floor(Math.random() * COLORS.length)], v: (5 + Math.random() * 9) * z,
       a: 0.06 + 0.12 * z, ph: Math.random() * 6.28, push: 0,
+      ox: 0, oy: 0, vx: 0, vy: 0, flash: 0, hit: 0, // knocked away by a click pulse, then springs back
     };
   };
   const size = () => {
@@ -2601,20 +2605,62 @@ function setupHeroFx() {
     for (let x = ((gx % (step * 3)) + step * 3) % (step * 3); x < W; x += step * 3) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
     for (let y = ((gy % step) + step) % step; y < H; y += step) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
     ctx.stroke();
+    // click pulses: two glowing rings and a quick flash at the center
+    for (let i = pulses.length - 1; i >= 0; i--) {
+      const p = pulses[i], age = (t - p.t0) / 1000;
+      if (age > PULSE_LIFE) { pulses.splice(i, 1); continue; }
+      const fade = 1 - age / PULSE_LIFE;
+      for (const [lag, width] of [[0, 3], [0.14, 1.5]]) {
+        const r = Math.max(0, age - lag) * PULSE_SPEED;
+        if (!r) continue;
+        ctx.globalAlpha = fade * fade * 0.55;
+        ctx.strokeStyle = "#bff0d6";
+        ctx.lineWidth = width;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (age < 0.35) {
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 120);
+        g.addColorStop(0, `rgba(255,255,255,${0.35 * (1 - age / 0.35)})`);
+        g.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(p.x - 120, p.y - 120, 240, 240);
+      }
+    }
+    ctx.globalAlpha = 1;
     for (const b of blocks) {
       b.y -= b.v * dt;
       if (b.y + b.h < -30) Object.assign(b, block(false));
       let x = b.x + (0.5 - mouse.x) * 50 * b.z + Math.sin(t / 1600 + b.ph) * 6 * b.z;
       let y = b.y + (0.5 - mouse.y) * 26 * b.z;
+      // the pulse's wavefront knocks each block outward as it passes it
+      for (const p of pulses) {
+        if (b.hit >= p.id) continue;
+        const kx = x + b.ox + b.w / 2 - p.x, ky = y + b.oy + b.h / 2 - p.y, kd = Math.hypot(kx, ky) || 1;
+        if (kd > ((t - p.t0) / 1000) * PULSE_SPEED) continue;
+        const force = Math.max(0.15, 1 - kd / 700) * 520 * (0.5 + b.z);
+        b.vx += (kx / kd) * force; b.vy += (ky / kd) * force;
+        b.flash = Math.max(b.flash, 1 - kd / 900);
+        b.hit = p.id;
+      }
+      // spring back to the resting place
+      b.vx += (-b.ox * 40 - b.vx * 7) * dt; b.vy += (-b.oy * 40 - b.vy * 7) * dt;
+      b.ox += b.vx * dt; b.oy += b.vy * dt;
+      b.flash = Math.max(0, b.flash - dt * 1.6);
+      x += b.ox; y += b.oy;
       // blocks near the pointer light up and step aside
       const dx = x + b.w / 2 - mx, dy = y + b.h / 2 - my, d = Math.hypot(dx, dy) || 1;
       const near = Math.max(0, 1 - d / 170) * mouse.on;
       b.push += (near - b.push) * Math.min(1, dt * 6);
       x += (dx / d) * b.push * 22; y += (dy / d) * b.push * 22;
-      ctx.globalAlpha = Math.min(0.75, b.a + b.push * 0.4);
+      ctx.globalAlpha = Math.min(0.85, b.a + b.push * 0.4 + b.flash * 0.55);
       ctx.fillStyle = b.c;
       rect(x, y, b.w, b.h, 3 + 3 * b.z);
       ctx.fill();
+      if (b.flash > 0.02) {
+        ctx.globalAlpha = b.flash * 0.35;
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.fillStyle = b.c;
+      }
       // the colored edge, like the events in the calendar
       ctx.globalAlpha = Math.min(1, b.a * 2.2 + b.push * 0.5);
       rect(x + b.w - 3 * b.z - 1, y, 3 * b.z + 1, b.h, 1.5);
@@ -2641,6 +2687,15 @@ function setupHeroFx() {
   hero.addEventListener("pointerleave", () => {
     mouse.ton = 0;
     if (mark) mark.style.transform = "";
+  });
+  // a click (or tap) sends a pulse through the blocks
+  hero.addEventListener("pointerdown", (e) => {
+    if (still || e.button > 0) return;
+    const r = hero.getBoundingClientRect();
+    pulses.push({ x: e.clientX - r.left, y: e.clientY - r.top, t0: performance.now(), id: ++pulseId });
+    if (pulses.length > 4) pulses.shift();
+    mark?.animate([{ scale: 1 }, { scale: 1.14 }, { scale: 0.96 }, { scale: 1 }], { duration: 450, easing: "ease-out" });
+    start();
   });
   new ResizeObserver(() => { size(); if (still) draw(0, 0); }).observe(hero);
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; start(); }).observe(hero);
