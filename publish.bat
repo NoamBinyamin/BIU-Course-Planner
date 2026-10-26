@@ -1,15 +1,21 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-rem Uploads the data saved with "פרסום לגרסה המקוונת" so GitHub Pages shows it.
+rem Uploads the data saved with the "publish" button so the GitHub Pages copy shows it.
 if not exist "web\data\snapshot.json" (
-  echo לא נמצא קובץ נתונים. קודם לוחצים "פרסום לגרסה המקוונת" בתחתית האתר המקומי.
+  echo No published data found. First click "Publish" at the bottom of the local site.
   pause
   exit /b 1
 )
 git add web/data/snapshot.json
-git commit -m "עדכון נתוני המערכת" || echo אין שינויים חדשים לפרסום.
+git commit -m "Update published data"
+if errorlevel 1 echo Nothing new to publish - uploading anyway.
 git push
+if errorlevel 1 (
+  echo.
+  echo Upload failed. Check your internet connection / GitHub sign-in and try again.
+  pause
+  exit /b 1
+)
 echo.
-echo הנתונים הועלו. האתר בגיטהאב יתעדכן תוך דקה-שתיים.
+echo Done. The GitHub Pages site updates within a minute or two.
 pause
