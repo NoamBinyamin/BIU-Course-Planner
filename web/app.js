@@ -651,7 +651,13 @@ function welcomeHTML() {
       <li><div><b>בוחרים קבוצות</b><span>לוחצים על שורה כדי לבחור אותה. קבוצות מתנגשות מסומנות.</span></div></li>
       <li><div><b>רואים את השבוע</b><span>הקבוצות שבחרתם משובצות בלוח השבועי שליד הרשימה.</span></div></li>
     </ol>
-    <button type="button" class="btn text try" data-try="89110">נסו לדוגמה: 89110 – מבוא למדעי המחשב</button>
+    <div class="welcome-actions">
+      <button type="button" class="btn primary" data-open-add>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+        הוספת קורס
+      </button>
+      <button type="button" class="btn text try" data-try="89110">נסו לדוגמה: 89110 – מבוא למדעי המחשב</button>
+    </div>
   </div>`;
 }
 
@@ -678,7 +684,8 @@ function renderCourses() {
       <h2>${state.offline ? "לא פורסמו קורסים" : "אין עדיין קורסים"} ב${esc(termLabel(state.view))}</h2>
       <p>${state.offline
         ? "בגרסת הצפייה מוצגים רק הקורסים שפורסמו. אפשר לעבור לסמסטר שיש בו קורסים:"
-        : "מוסיפים קורס בשורה למעלה – הוא יישמר תחת השנה והסמסטר האלה, עם מערכות וחלופות משלהם."}</p>
+        : "מוסיפים קורס בכפתור \"הוספת קורס\" – הוא יישמר תחת השנה והסמסטר האלה, עם מערכות וחלופות משלהם."}</p>
+      ${state.offline ? "" : `<div class="welcome-actions"><button type="button" class="btn primary" data-open-add><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>הוספת קורס</button></div>`}
       <div class="term-jump"><span class="muted">יש קורסים ב:</span>${others.map((t) =>
         `<button type="button" class="pick on" data-term="${esc(t)}">${esc(termLabel(t))} <b>${state.courses.filter((c) => termOf(c) === t).length}</b></button>`).join("")}</div>
     </div>`;
@@ -2494,7 +2501,7 @@ function render() {
   $("compare").hidden = mode !== "compare";
   $("generator").hidden = mode !== "generate";
   $("buildView").hidden = mode !== "build";
-  $("addForm").hidden = mode !== "build" || state.offline;
+  $("addCourseBtn").hidden = state.offline;
   if (mode === "compare") renderCompare();
   else if (mode === "generate") renderGenerator();
   else {
@@ -2561,6 +2568,20 @@ function addCourse(e) {
   setTimeout(() => { if ($("lookup").classList.contains("found") && !$("codeInput").value) idleLookup(); }, 2500);
   render();
   $("codeInput").focus();
+}
+
+function openAddDialog(code) {
+  if (state.offline) return;
+  const dlg = $("addDialog");
+  if (!dlg.open) dlg.showModal();
+  if (code) { $("codeInput").value = code; scheduleLookup(); }
+  $("codeInput").focus();
+}
+function closeAddDialog() {
+  const dlg = $("addDialog");
+  if (!dlg.open) return;
+  dlg.classList.add("closing");
+  setTimeout(() => { dlg.classList.remove("closing"); dlg.close(); }, 160);
 }
 
 function removeCourse(key) {
@@ -2633,6 +2654,136 @@ function scheduleLookup() {
 
 /* ---------- init ---------- */
 
+/* ---------- drop-down lists: the native <select> keeps the value, the list itself is drawn like the tooltips ---------- */
+
+// floating bubbles must live inside an open modal dialog to show above it; position:fixed is measured
+// against wherever they end up, so the requested viewport point is corrected by the actual origin
+function placeFloating(el, x, y) {
+  el.style.left = "0px"; el.style.top = "0px";
+  const o = el.getBoundingClientRect();
+  el.style.left = `${x - o.left}px`;
+  el.style.top = `${y - o.top}px`;
+}
+const floatingHost = (near) => near?.closest?.("dialog[open]") || document.body;
+
+function setupSelects() {
+  const pop = document.createElement("div");
+  pop.className = "tip sel-pop";
+  pop.hidden = true;
+  pop.innerHTML = '<div class="sp-list" role="listbox"></div>';
+  const list = pop.firstChild;
+  let sel = null, opts = [], active = -1, typed = "", typedAt = 0;
+
+  const setActive = (i, scroll = true) => {
+    active = i;
+    list.querySelectorAll(".sp-opt").forEach((el) => el.classList.toggle("active", Number(el.dataset.i) === i));
+    if (scroll) list.querySelector(`.sp-opt[data-i="${i}"]`)?.scrollIntoView({ block: "nearest" });
+  };
+  const step = (from, dir) => {
+    for (let i = from + dir; i >= 0 && i < opts.length; i += dir) if (!opts[i].disabled) return i;
+    return from;
+  };
+  const open = (s) => {
+    sel = s;
+    opts = [];
+    const item = (o) => {
+      const i = opts.push(o) - 1;
+      return `<div class="sp-opt ${o.disabled ? "disabled" : ""} ${o.selected ? "on" : ""}" role="option" data-i="${i}"
+        aria-selected="${o.selected}" aria-disabled="${o.disabled}">${esc(o.textContent)}</div>`;
+    };
+    list.innerHTML = [...s.children].map((n) => (n.tagName === "OPTGROUP"
+      ? `<div class="sp-group">${esc(n.label)}</div>${[...n.children].map(item).join("")}`
+      : item(n))).join("");
+    floatingHost(s).appendChild(pop);
+    pop.hidden = false;
+    pop.classList.remove("in", "below");
+    const r = s.getBoundingClientRect();
+    pop.style.minWidth = `${Math.max(r.width, 120)}px`;
+    // below the field when there's room, otherwise above it
+    const roomBelow = innerHeight - r.bottom - 16, roomAbove = r.top - 16;
+    const below = roomBelow >= Math.min(260, list.scrollHeight + 16) || roomBelow >= roomAbove;
+    list.style.maxHeight = `${Math.max(120, Math.min(340, (below ? roomBelow : roomAbove) - 14))}px`;
+    pop.classList.toggle("below", below);
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    const x = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)); // right-aligned with the field (RTL)
+    placeFloating(pop, x, below ? r.bottom + 9 : r.top - h - 9);
+    pop.style.setProperty("--arrow", `${Math.max(14, Math.min(w - 14, r.right - 18 - x))}px`);
+    setActive(opts.findIndex((o) => o.selected));
+    s.setAttribute("aria-expanded", "true");
+    requestAnimationFrame(() => pop.classList.add("in"));
+  };
+  const close = () => {
+    if (!sel) return;
+    sel.setAttribute("aria-expanded", "false");
+    sel = null;
+    pop.hidden = true;
+  };
+  const choose = (i) => {
+    const o = opts[i], s = sel;
+    if (!o || o.disabled || !s) return;
+    close();
+    s.focus({ preventScroll: true });
+    if (s.selectedIndex === o.index) return;
+    s.selectedIndex = o.index;
+    s.dispatchEvent(new Event("input", { bubbles: true }));
+    s.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const usable = (t) => t instanceof HTMLSelectElement && !t.multiple && !t.disabled && t.size <= 1;
+  const toggle = (s) => { if (sel === s) close(); else { close(); open(s); } };
+
+  // mouse: stop the native list from opening and show ours
+  document.addEventListener("mousedown", (e) => {
+    if (!usable(e.target) || e.button !== 0) return;
+    e.preventDefault();
+    e.target.focus({ preventScroll: true });
+    toggle(e.target);
+  }, true);
+  // touch: same, on the end of the tap so scrolling over a field still works
+  document.addEventListener("touchend", (e) => {
+    const s = e.target.closest?.("select");
+    if (!usable(s) || e.changedTouches.length !== 1) return;
+    e.preventDefault();
+    toggle(s);
+  }, { capture: true, passive: false });
+  document.addEventListener("keydown", (e) => {
+    if (!sel) {
+      if (usable(e.target) && (e.key === "Enter" || e.key === " " || e.key === "F4" || (e.altKey && /Arrow(Down|Up)/.test(e.key)))) {
+        e.preventDefault();
+        open(e.target);
+      }
+      return;
+    }
+    const k = e.key;
+    if (k === "ArrowDown" || k === "ArrowUp") { e.preventDefault(); setActive(step(active, k === "ArrowDown" ? 1 : -1)); }
+    else if (k === "Home" || k === "End") { e.preventDefault(); setActive(step(k === "Home" ? -1 : opts.length, k === "Home" ? 1 : -1)); }
+    else if (k === "Enter" || k === " ") { e.preventDefault(); choose(active); }
+    else if (k === "Escape") { e.preventDefault(); e.stopPropagation(); const s = sel; close(); s.focus(); }
+    else if (k === "Tab") close();
+    else if (k.length === 1 && !e.ctrlKey && !e.metaKey) {
+      // type to jump to an option
+      typed = performance.now() - typedAt < 700 ? typed + k : k;
+      typedAt = performance.now();
+      const i = opts.findIndex((o) => !o.disabled && o.textContent.trim().startsWith(typed));
+      if (i >= 0) setActive(i);
+    }
+  }, true);
+  list.addEventListener("mousemove", (e) => {
+    const i = e.target.closest(".sp-opt:not(.disabled)")?.dataset.i;
+    if (i != null && Number(i) !== active) setActive(Number(i), false);
+  });
+  list.addEventListener("click", (e) => {
+    const i = e.target.closest(".sp-opt")?.dataset.i;
+    if (i != null) choose(Number(i));
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (sel && !pop.contains(e.target) && e.target !== sel) close();
+  }, true);
+  window.addEventListener("scroll", (e) => { if (sel && !pop.contains(e.target)) close(); }, true);
+  window.addEventListener("resize", close);
+  // a re-render can replace the field while the list is open
+  new MutationObserver(() => { if (sel && !sel.isConnected) close(); }).observe(document.body, { childList: true, subtree: true });
+}
+
 /* ---------- tooltips: one styled bubble for every title / data-tip on the page (mouse and keyboard) ---------- */
 
 function setupTooltips() {
@@ -2663,8 +2814,7 @@ function setupTooltips() {
     const below = r.top - t.height - 10 < 8;
     tip.classList.toggle("below", below);
     const x = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, innerWidth - t.width - 8));
-    tip.style.left = `${x}px`;
-    tip.style.top = `${below ? r.bottom + 10 : r.top - t.height - 10}px`;
+    placeFloating(tip, x, below ? r.bottom + 10 : r.top - t.height - 10);
     tip.style.setProperty("--arrow", `${Math.max(12, Math.min(t.width - 12, r.left + r.width / 2 - x))}px`);
   };
   const show = (el) => {
@@ -2675,6 +2825,7 @@ function setupTooltips() {
     timer = setTimeout(() => {
       if (target !== el || !el.isConnected) return;
       tip.textContent = el.dataset.tip || el.textContent.trim();
+      floatingHost(el).appendChild(tip); // inside an open dialog, so it shows above it
       tip.hidden = false;
       tip.classList.remove("in");
       place();
@@ -2909,6 +3060,7 @@ function applyTheme(theme) {
 
 function init() {
   setupTooltips();
+  setupSelects();
   applyTheme(store.get("ui.theme", "auto"));
   $("themeSwitch").addEventListener("click", (e) => {
     const t = e.target.closest("[data-theme-set]")?.dataset.themeSet;
@@ -2933,6 +3085,12 @@ function init() {
   setAddReady(false);
 
   $("addForm").addEventListener("submit", addCourse);
+  $("addCourseBtn").addEventListener("click", () => openAddDialog());
+  $("addClose").addEventListener("click", closeAddDialog);
+  $("addDone").addEventListener("click", closeAddDialog);
+  // a click on the dimmed backdrop closes it
+  $("addDialog").addEventListener("click", (e) => { if (e.target === $("addDialog")) closeAddDialog(); });
+  $("addDialog").addEventListener("cancel", (e) => { e.preventDefault(); closeAddDialog(); });
   $("codeInput").addEventListener("input", scheduleLookup);
   // the add form's year/semester are the active term: changing them switches the whole view
   const formTerm = () => setTerm(termKey($("yearInput").value, $("semesterInput").value));
@@ -2964,7 +3122,8 @@ function init() {
     const jump = e.target.closest("[data-term]");
     if (jump) return setTerm(jump.dataset.term);
     const tryBtn = e.target.closest("[data-try]");
-    if (tryBtn) { $("codeInput").value = tryBtn.dataset.try; $("codeInput").focus(); return scheduleLookup(); }
+    if (tryBtn) return openAddDialog(tryBtn.dataset.try);
+    if (e.target.closest("[data-open-add]")) return openAddDialog();
     const courseKey = e.target.closest(".course")?.dataset.course;
     const flag = e.target.closest("[data-clash]");
     if (flag) return toast(flag.dataset.clash, "warn");

@@ -1608,3 +1608,82 @@ button.course-icon::after {
 @media (prefers-reduced-motion: reduce) { .swap-target { animation: none; } }
 .swap-target.clash b { padding-inline-end: 17px; }
 @media (max-width: 640px) { .swap-target { padding: 3px 4px; font-size: 10.5px; } .st-clash { width: 12px; height: 12px; top: 3px; inset-inline-end: 3px; } .swap-target.clash b { padding-inline-end: 13px; } }
+
+/* ---------- add-course dialog ---------- */
+.offline-banner[hidden] + .plansbar { margin-top: -36px; position: relative; }
+.add-course-btn {
+  margin-inline-start: auto; align-self: center; height: 36px; padding: 0 14px; gap: 6px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 14px; border-radius: 10px;
+}
+.add-course-btn:hover { background: var(--accent-hover); }
+.add-course-btn svg { width: 16px; height: 16px; stroke-width: 2.2; }
+.welcome-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.welcome-actions .btn.primary { height: 42px; gap: 6px; }
+.welcome-actions .btn.primary svg { width: 16px; height: 16px; stroke-width: 2.2; }
+
+.add-dlg { width: min(560px, calc(100vw - 32px)); overflow: visible; }
+.add-dlg .addbar, .dlg.add-dlg form {
+  display: grid; align-items: end;
+  margin: 0; box-shadow: none; border-radius: inherit; padding: 20px 22px 18px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+.add-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.add-head h3 { margin: 0; font-size: 19px; font-weight: 700; flex: 1; }
+.add-close { width: 34px !important; height: 34px !important; }
+.add-close svg { width: 16px; height: 16px; }
+.add-sub { grid-column: 1 / -1; margin: -6px 0 2px; font-size: 13.5px; }
+.add-dlg .ab-code { grid-column: 1 / -1; }
+.add-dlg #addBtn { grid-column: 1 / -1; height: 46px; font-size: 15.5px; }
+.add-dlg .lookup { grid-column: 1 / -1; min-height: 20px; }
+.add-done { grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-top: -4px; }
+.add-done .btn { height: 36px; }
+.add-dlg.closing { animation: dlgOut .16s ease-in both; }
+.add-dlg.closing::backdrop { opacity: 0; transition: opacity .16s; }
+@keyframes dlgOut { to { opacity: 0; transform: scale(.97); } }
+
+/* phones: a sheet that slides up from the bottom */
+@media (max-width: 640px) {
+  .add-course-btn { height: 34px; padding: 0 11px; font-size: 13.5px; }
+  .add-dlg {
+    width: 100%; max-width: 100%; margin: auto 0 0; border-radius: 22px 22px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .add-dlg[open] { animation: sheetUp .28s var(--ease) both; }
+  .add-dlg.closing { animation: sheetDown .18s ease-in both; }
+  .add-dlg .addbar { padding: 10px 16px 16px; grid-template-columns: 1fr 1fr; }
+  .add-dlg .addbar::before { content: ""; grid-column: 1 / -1; justify-self: center; width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong); }
+}
+@keyframes sheetUp { from { transform: translateY(100%); } }
+@keyframes sheetDown { to { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .add-dlg[open], .add-dlg.closing { animation: none; } }
+
+/* ---------- drop-down lists drawn like the tooltips ---------- */
+select:not(.term-year select):not([multiple]) {
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5l3 3 3-3' fill='none' stroke='%238a958e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important; background-size: 12px 12px !important;
+  background-position: left 9px center !important;
+  padding-inline-end: 28px !important;
+}
+select[aria-expanded="true"] { border-color: var(--accent) !important; }
+.sel-pop {
+  pointer-events: auto; padding: 5px; max-width: min(380px, calc(100vw - 16px)); white-space: normal; z-index: 120;
+}
+.sp-list { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.sp-opt {
+  position: relative; padding: 7px 12px 7px 28px; padding-inline-start: 12px; padding-inline-end: 28px;
+  border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 13.5px;
+}
+.sp-opt.active { background: color-mix(in srgb, var(--tip-ink) 14%, transparent); }
+.sp-opt.on { font-weight: 700; }
+.sp-opt.on::after {
+  content: ""; position: absolute; inset-inline-end: 10px; top: 50%; width: 9px; height: 5px; margin-top: -4px;
+  border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg);
+}
+.sp-opt.disabled { opacity: .4; cursor: default; }
+.sp-group { padding: 8px 12px 3px; font-size: 11.5px; font-weight: 700; opacity: .6; letter-spacing: .02em; }
+.sp-group:not(:first-child) { margin-top: 4px; border-top: 1px solid color-mix(in srgb, var(--tip-ink) 14%, transparent); }
+@media (hover: none), (pointer: coarse) { .sp-opt { padding-block: 11px; font-size: 15px; } }
+
+/* the fields inside the add-course dialog fill their columns */
+.add-dlg .ab-field input, .add-dlg .ab-field select { width: 100%; }

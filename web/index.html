@@ -41,30 +41,6 @@
     <button type="button" class="btn ghost" id="loadSnapshotBtn" hidden>טעינת הנתונים שפורסמו</button>
   </div>
 
-  <form id="addForm" class="addbar" autocomplete="off" novalidate>
-    <div class="ab-field ab-code">
-      <label for="codeInput">מספר קורס</label>
-      <input id="codeInput" inputmode="numeric" placeholder="לדוגמה 89110" aria-describedby="lookup">
-    </div>
-    <div class="ab-field">
-      <label for="yearInput">שנה</label>
-      <select id="yearInput"></select>
-    </div>
-    <div class="ab-field">
-      <label for="semesterInput">סמסטר</label>
-      <select id="semesterInput">
-        <option value="A">סמסטר א'</option>
-        <option value="B">סמסטר ב'</option>
-        <option value="summer">סמסטר קיץ</option>
-      </select>
-    </div>
-    <button type="submit" id="addBtn" class="btn primary">
-      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
-      הוספה
-    </button>
-    <div id="lookup" class="lookup" aria-live="polite"></div>
-  </form>
-
   <nav class="plansbar" aria-label="שנה, סמסטר וחלופות">
     <div class="pb-row pb-term">
       <span class="pb-label">שנה וסמסטר</span>
@@ -217,6 +193,10 @@
       <div class="courses-head" id="coursesHead">
         <h2 id="coursesTitle">הקורסים בסמסטר הזה</h2>
         <span class="courses-count" id="coursesCount"></span>
+        <button type="button" class="btn add-course-btn" id="addCourseBtn">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+          הוספת קורס
+        </button>
       </div>
       <div class="toolbar" id="toolbar">
         <div class="tb-views">
@@ -311,6 +291,38 @@
   <button type="button" role="menuitem" data-pact="copy"><b>שכפול</b></button>
   <button type="button" role="menuitem" data-pact="delete" class="danger"><b>מחיקה</b></button>
 </div>
+
+<dialog id="addDialog" class="dlg add-dlg" aria-labelledby="addTitle">
+    <form id="addForm" class="addbar" autocomplete="off" novalidate>
+      <div class="add-head">
+        <h3 id="addTitle">הוספת קורס</h3>
+        <button type="button" class="btn icon-btn add-close" id="addClose" aria-label="סגירה" title="סגירה"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <p class="muted add-sub">מקלידים מספר קורס, והשם והקבוצות נמשכים מאתר בר אילן.</p>
+      <div class="ab-field ab-code">
+        <label for="codeInput">מספר קורס</label>
+        <input id="codeInput" inputmode="numeric" placeholder="לדוגמה 89110" aria-describedby="lookup">
+      </div>
+      <div class="ab-field">
+        <label for="yearInput">שנה</label>
+        <select id="yearInput"></select>
+      </div>
+      <div class="ab-field">
+        <label for="semesterInput">סמסטר</label>
+        <select id="semesterInput">
+          <option value="A">סמסטר א'</option>
+          <option value="B">סמסטר ב'</option>
+          <option value="summer">סמסטר קיץ</option>
+        </select>
+      </div>
+      <button type="submit" id="addBtn" class="btn primary">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+        הוספה
+      </button>
+      <div id="lookup" class="lookup" aria-live="polite"></div>
+      <div class="add-done"><button type="button" class="btn ghost" id="addDone">סיום</button></div>
+    </form>
+</dialog>
 
 <dialog id="blockDialog" class="dlg" aria-labelledby="blockTitle">
   <form id="blockForm" method="dialog">
