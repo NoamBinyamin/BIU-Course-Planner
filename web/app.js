@@ -1535,7 +1535,8 @@ function generateSchedules(prefs, allowClash = false) {
   return { comps: comps.length, blocked, results, valid, steps, capped: steps > GEN_LIMIT };
 }
 
-let genShown = 12;
+const GEN_PAGE = 6; // the recommendation + 5 more
+let genShown = GEN_PAGE;
 let genSaved = new Map(); // result signature -> plan id, so a result is saved once
 const resultSig = (r) => r.options.map((o) => `${o.course.key}|${o.groups[0].group}`).sort().join(",");
 
@@ -1627,7 +1628,8 @@ function renderGenerator() {
   let fStart = Math.floor(Math.min(...all.map((s) => s.start), 600) / 60) * 60;
   let fEnd = Math.ceil(Math.max(...all.map((s) => s.end), 960) / 60) * 60;
   if (fEnd - fStart < 360) fEnd = fStart + 360;
-  const frame = { start: fStart, end: fEnd, dayList: dayColumns(all.map((s) => s.day), false) };
+  // all cards share the hours so they're comparable; each shows only its own days when empty days are hidden
+  const frameFor = (r) => ({ start: fStart, end: fEnd, dayList: dayColumns(r.options.flatMap((o) => o.sessions.map((s) => s.day)), false) });
 
   const summary = banner ? "" : `נמצאו ${res.valid.toLocaleString("he-IL")} צירופים אפשריים${res.capped ? " (החיפוש נעצר באמצע – יש עוד)" : ""} · מדורגים מהטוב ביותר כלפי מטה · ${ms} מ"ש`;
   const optName = (o) => `${o.type} ${o.groups.map((g) => g.group).join("/")} ב${entryOf(o.course).name}`;
@@ -1646,6 +1648,24 @@ function renderGenerator() {
       ${parts.map((o) => `<span class="${o.liked ? "liked" : ""}" title="${esc([...new Set(o.groups.flatMap(teachersOf))].join(", "))}">${o.liked ? "★ " : ""}${esc(o.type)} ${o.groups.map((g) => esc(g.group)).join("/")}</span>`).join("")}
     </li>`).join("")}</ul>`;
   };
+  // the smaller cards: one colored chip per course with only the group numbers; the details are in its tooltip
+  const chipsHTML = (r) => {
+    const byCourse = new Map();
+    for (const o of r.options) {
+      if (!byCourse.has(o.course.key)) byCourse.set(o.course.key, { course: o.course, parts: [] });
+      byCourse.get(o.course.key).parts.push(o);
+    }
+    return `<div class="gen-chips">${[...byCourse.values()].map(({ course, parts }) => {
+      const tip = [entryOf(course).name, ...parts.map((o) => {
+        const who = [...new Set(o.groups.flatMap(teachersOf))].join(", ");
+        const when = o.sessions.map((s) => `${DAY_SHORT[s.day]} ${fmtMin(s.start)}–${fmtMin(s.end)}`).join(", ");
+        return `${o.liked ? "★ " : ""}${o.type} ${o.groups.map((g) => g.group).join("/")}${when ? ` · ${when}` : ""}${who ? ` · ${who}` : ""}`;
+      })].join("\n");
+      return `<span class="gen-chip" style="--c:${course.color}" data-tip="${esc(tip)}" tabindex="0">${parts.map((o) =>
+        `<span class="${o.liked ? "liked" : ""}"><small>${esc(o.type.slice(0, 1))}'</small>${o.groups.map((g) => esc(g.group)).join("/")}</span>`).join("")}</span>`;
+    }).join("")}</div>`;
+  };
+  const rankHTML = (place) => `<span class="rank ${place <= 3 ? `medal m${place}` : ""}" aria-label="מקום ${place}"><small>מקום</small>${place}</span>`;
   const clashHTML = (r) => (r.clashes.length
     ? `<div class="gen-clash">${ICONS.warn}<span>${r.clashes.map(([a, b]) => `${esc(optName(a))} ↔ ${esc(optName(b))}`).join("<br>")}</span></div>` : "");
   const saveBtn = (r, i, big) => {
@@ -1690,36 +1710,36 @@ function renderGenerator() {
 
   const featured = `<article class="gen-featured ${best.clashes.length ? "has-clash" : ""}">
     <div class="gf-info">
-      <span class="gf-badge">${best.clashes.length ? "הכי קרובה" : "ההמלצה"}</span>
+      <div class="gf-top">${rankHTML(1)}<span class="gf-badge">${best.clashes.length ? "הכי קרובה" : "ההמלצה"}</span></div>
       <h3>${best.clashes.length ? "הצירוף עם הכי מעט התנגשויות" : "המערכת הטובה ביותר לפי מה שסימנת"}</h3>
       <ul class="gf-reasons">${reasons(best.m).map((t) => `<li>${ICONS.check}<span>${esc(t)}</span></li>`).join("")}</ul>
       ${clashHTML(best)}
       ${partsHTML(best)}
       ${saveBtn(best, 0, true)}
     </div>
-    <div class="gf-cal">${miniCalHTML(picked(best), frame)}</div>
+    <div class="gf-cal">${miniCalHTML(picked(best), frameFor(best))}</div>
   </article>`;
 
   const rest = shown.slice(1);
   out.innerHTML = `${banner}${summary ? `<p class="gen-summary">${summary}</p>` : ""}${featured}
-  ${rest.length ? `<h3 class="gen-rest-title">חלופות נוספות <span class="muted">· מהטובה לפחות טובה, עם מה שפחות טוב בהן לעומת ההמלצה</span></h3>
+  ${rest.length ? `<h3 class="gen-rest-title">${rest.length} הצעות נוספות <span class="muted">· לפי המקום שקיבלו, עם מה שפחות טוב בהן לעומת ההמלצה</span></h3>
   <div class="gen-grid">${rest.map((r, n) => {
     const i = n + 1;
     const dominated = r.dominatedBy >= 0 && r.dominatedBy < shown.length;
     return `<article class="gen-card ${r.clashes.length ? "has-clash" : ""} ${dominated ? "dominated" : ""}">
       <header>
-        <span class="rank">${i + 1}</span>
+        ${rankHTML(i + 1)}
         <div class="gen-tags">${tagsHTML(r.m)}</div>
       </header>
       <div class="gen-deltas">${deltas(r)}</div>
-      ${dominated ? `<p class="gen-dominated">חלופה ${r.dominatedBy + 1} טובה ממנה בכל מה שסימנת</p>` : ""}
+      ${dominated ? `<p class="gen-dominated">מקום ${r.dominatedBy + 1} טוב ממנה בכל מה שסימנת</p>` : ""}
       ${clashHTML(r)}
-      ${miniCalHTML(picked(r), frame)}
-      ${partsHTML(r)}
+      ${miniCalHTML(picked(r), frameFor(r))}
+      ${chipsHTML(r)}
       ${saveBtn(r, i, false)}
     </article>`;
   }).join("")}</div>` : ""}
-  ${res.results.length > genShown ? `<button type="button" class="btn ghost gen-more" id="genMore">הצגת עוד תוצאות</button>` : ""}`;
+  ${res.results.length > genShown ? `<button type="button" class="btn ghost gen-more" id="genMore">הצגת עוד 5 הצעות</button>` : ""}`;
   lastGen = res;
 }
 let lastGen = null;
@@ -2453,7 +2473,185 @@ function scheduleLookup() {
 
 /* ---------- init ---------- */
 
+/* ---------- tooltips: one styled bubble for every title / data-tip on the page (mouse and keyboard) ---------- */
+
+function setupTooltips() {
+  const tip = document.createElement("div");
+  tip.className = "tip";
+  tip.setAttribute("role", "tooltip");
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let target = null, timer = 0, lastHide = 0;
+
+  // the nearest element with something to say; native titles move to data-tip so the browser's own box never shows
+  const find = (node) => {
+    for (let el = node; el && el !== document.body; el = el.parentElement) {
+      if (!(el instanceof HTMLElement) || el.closest(".info, .tip")) return null; // (i) icons have their own bubble
+      if (el.hasAttribute("title")) {
+        const t = el.getAttribute("title");
+        el.removeAttribute("title");
+        if (t) el.dataset.tip = t;
+      }
+      if (el.dataset.tip) return el;
+      // text cut off with an ellipsis: show it in full
+      if (!el.children.length && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).textOverflow === "ellipsis") return el;
+    }
+    return null;
+  };
+  const place = () => {
+    const r = target.getBoundingClientRect(), t = tip.getBoundingClientRect();
+    const below = r.top - t.height - 10 < 8;
+    tip.classList.toggle("below", below);
+    const x = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, innerWidth - t.width - 8));
+    tip.style.left = `${x}px`;
+    tip.style.top = `${below ? r.bottom + 10 : r.top - t.height - 10}px`;
+    tip.style.setProperty("--arrow", `${Math.max(12, Math.min(t.width - 12, r.left + r.width / 2 - x))}px`);
+  };
+  const show = (el) => {
+    clearTimeout(timer);
+    if (el === target && !tip.hidden) return;
+    target = el;
+    // moving straight from one tooltip to the next shows it right away
+    timer = setTimeout(() => {
+      if (target !== el || !el.isConnected) return;
+      tip.textContent = el.dataset.tip || el.textContent.trim();
+      tip.hidden = false;
+      tip.classList.remove("in");
+      place();
+      requestAnimationFrame(() => tip.classList.add("in"));
+    }, !tip.hidden || performance.now() - lastHide < 400 ? 0 : 350);
+  };
+  const hide = () => {
+    clearTimeout(timer);
+    if (!tip.hidden) lastHide = performance.now();
+    tip.hidden = true;
+    target = null;
+  };
+  document.addEventListener("pointerover", (e) => {
+    if (e.pointerType !== "mouse") return;
+    const el = find(e.target);
+    if (el) show(el); else hide();
+  });
+  // after a scroll or click hid it, the next mouse move over the same element brings it back
+  document.addEventListener("pointermove", (e) => {
+    if (e.pointerType !== "mouse" || target) return;
+    const el = find(e.target);
+    if (el) show(el);
+  }, { passive: true });
+  document.addEventListener("pointerout", (e) => { if (target && !target.contains(e.relatedTarget)) hide(); });
+  document.addEventListener("focusin", (e) => {
+    const el = e.target instanceof HTMLElement && e.target.matches(":focus-visible") ? find(e.target) : null;
+    if (el) show(el); else hide();
+  });
+  document.addEventListener("focusout", hide);
+  ["pointerdown", "keydown", "wheel"].forEach((t) => document.addEventListener(t, hide, true));
+  window.addEventListener("scroll", hide, true);
+}
+
+/* ---------- the banner: floating timetable blocks that follow the mouse ---------- */
+
+function setupHeroFx() {
+  const hero = document.querySelector(".hero"), cv = hero?.querySelector(".hero-fx"), mark = hero?.querySelector(".brand-mark");
+  const ctx = cv?.getContext?.("2d");
+  if (!ctx) return;
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const COLORS = ["#7fd1a8", "#f2c14e", "#ffffff", "#8ec5ff", "#f29e8e", "#c3a6ff"];
+  const mouse = { x: 0.3, y: 0.4, tx: 0.3, ty: 0.4, on: 0, ton: 0 };
+  let W = 0, H = 0, blocks = [], raf = 0, last = 0, visible = true;
+
+  const block = (anywhere) => {
+    const z = 0.35 + Math.random() * 0.65; // depth: nearer blocks are bigger, rise faster and move more with the mouse
+    return {
+      z, x: Math.random() * W, y: anywhere ? Math.random() * H : H + 20,
+      w: (28 + Math.random() * 40) * z, h: (16 + Math.random() * 44) * z,
+      c: COLORS[Math.floor(Math.random() * COLORS.length)], v: (5 + Math.random() * 9) * z,
+      a: 0.06 + 0.12 * z, ph: Math.random() * 6.28, push: 0,
+    };
+  };
+  const size = () => {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    W = hero.clientWidth; H = hero.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    blocks = Array.from({ length: Math.round(Math.min(38, Math.max(12, W / 38))) }, () => block(true));
+    blocks.sort((a, b) => a.z - b.z);
+  };
+  const rect = (x, y, w, h, r) => {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  };
+  const draw = (t, dt) => {
+    mouse.x += (mouse.tx - mouse.x) * Math.min(1, dt * 5);
+    mouse.y += (mouse.ty - mouse.y) * Math.min(1, dt * 5);
+    mouse.on += (mouse.ton - mouse.on) * Math.min(1, dt * 4);
+    ctx.clearRect(0, 0, W, H);
+    const mx = mouse.x * W, my = mouse.y * H;
+    // soft light under the pointer
+    const glow = ctx.createRadialGradient(mx, my, 0, mx, my, 280);
+    glow.addColorStop(0, `rgba(255,255,255,${0.1 * mouse.on + 0.03})`);
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+    // a faint week grid that drifts against the pointer
+    ctx.strokeStyle = "rgba(255,255,255,.05)";
+    ctx.lineWidth = 1;
+    const gx = (0.5 - mouse.x) * 14, gy = (0.5 - mouse.y) * 8, step = 34;
+    ctx.beginPath();
+    for (let x = ((gx % (step * 3)) + step * 3) % (step * 3); x < W; x += step * 3) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
+    for (let y = ((gy % step) + step) % step; y < H; y += step) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
+    ctx.stroke();
+    for (const b of blocks) {
+      b.y -= b.v * dt;
+      if (b.y + b.h < -30) Object.assign(b, block(false));
+      let x = b.x + (0.5 - mouse.x) * 50 * b.z + Math.sin(t / 1600 + b.ph) * 6 * b.z;
+      let y = b.y + (0.5 - mouse.y) * 26 * b.z;
+      // blocks near the pointer light up and step aside
+      const dx = x + b.w / 2 - mx, dy = y + b.h / 2 - my, d = Math.hypot(dx, dy) || 1;
+      const near = Math.max(0, 1 - d / 170) * mouse.on;
+      b.push += (near - b.push) * Math.min(1, dt * 6);
+      x += (dx / d) * b.push * 22; y += (dy / d) * b.push * 22;
+      ctx.globalAlpha = Math.min(0.75, b.a + b.push * 0.4);
+      ctx.fillStyle = b.c;
+      rect(x, y, b.w, b.h, 3 + 3 * b.z);
+      ctx.fill();
+      // the colored edge, like the events in the calendar
+      ctx.globalAlpha = Math.min(1, b.a * 2.2 + b.push * 0.5);
+      rect(x + b.w - 3 * b.z - 1, y, 3 * b.z + 1, b.h, 1.5);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+  const loop = (t) => {
+    const dt = Math.min(0.05, (t - (last || t)) / 1000);
+    last = t;
+    draw(t, dt);
+    raf = visible && !document.hidden ? requestAnimationFrame(loop) : 0;
+  };
+  const start = () => { if (!raf && !still && visible && !document.hidden) { last = 0; raf = requestAnimationFrame(loop); } };
+
+  hero.addEventListener("pointermove", (e) => {
+    const r = hero.getBoundingClientRect();
+    mouse.tx = (e.clientX - r.left) / r.width;
+    mouse.ty = (e.clientY - r.top) / r.height;
+    mouse.ton = e.pointerType === "mouse" ? 1 : 0.6;
+    if (mark && !still) mark.style.transform = `perspective(400px) rotateX(${(0.5 - mouse.ty) * 16}deg) rotateY(${(mouse.tx - 0.5) * 22}deg)`;
+    if (still) { mouse.x = mouse.tx; mouse.y = mouse.ty; mouse.on = mouse.ton; draw(0, 0); }
+  });
+  hero.addEventListener("pointerleave", () => {
+    mouse.ton = 0;
+    if (mark) mark.style.transform = "";
+  });
+  new ResizeObserver(() => { size(); if (still) draw(0, 0); }).observe(hero);
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; start(); }).observe(hero);
+  document.addEventListener("visibilitychange", start);
+  size();
+  if (still) draw(0, 0); else start();
+}
+
 function init() {
+  setupTooltips();
+  setupHeroFx();
   idleLookup();
   setAddReady(false);
 
@@ -2621,13 +2819,13 @@ function init() {
     state.generating = !state.generating;
     state.comparing = false;
     state.preview = null;
-    genShown = 12;
+    genShown = GEN_PAGE;
     render();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
 
   /* automatic builder */
-  const genPref = (patch) => { Object.assign(state.genPrefs, patch); genShown = 12; save(); renderGenerator(); };
+  const genPref = (patch) => { Object.assign(state.genPrefs, patch); genShown = GEN_PAGE; save(); renderGenerator(); };
   $("genForm").addEventListener("change", (e) => {
     const t = e.target;
     if (t.name === "criteria") {
@@ -2675,7 +2873,7 @@ function init() {
   $("genResults").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-gen]");
     if (btn) return saveGenerated(Number(btn.dataset.gen));
-    if (e.target.closest("#genMore")) { genShown += 12; renderGenerator(); }
+    if (e.target.closest("#genMore")) { genShown += 5; renderGenerator(); }
   });
 
   /* blocked times */
