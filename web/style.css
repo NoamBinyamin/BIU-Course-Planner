@@ -1691,3 +1691,15 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
 /* touch screens: no text selection or system callout on the calendar (long press is for switching groups) */
 .cal-wrap, .cal-wrap * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .cal-wrap { -webkit-tap-highlight-color: transparent; }
+
+/* color swatches: not stretched by the touch size rules for menu buttons */
+.color-menu .swatch { min-height: 0 !important; min-width: 0; height: auto; display: block; }
+@media (hover: none), (pointer: coarse) {
+  .color-menu { width: min(300px, calc(100vw - 16px)); }
+  .cm-swatches { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+  .cm-custom { min-height: 44px; }
+}
+.cm-custom input[type="color"] { -webkit-appearance: none; appearance: none; color: transparent; font-size: 0; overflow: hidden; padding: 2px; }
+.cm-custom input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.cm-custom input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 6px; }
+.cm-custom input[type="color"]::-moz-color-swatch { border: 0; border-radius: 6px; }
