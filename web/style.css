@@ -448,7 +448,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .grp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .grp {
   display: grid;
-  grid-template-columns: 22px auto minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) 28px;
+  grid-template-columns: 22px auto minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr) var(--rej-col, 28px);
   grid-template-areas: "tick num who when where rej";
   align-items: center;
   gap: 4px 10px;
@@ -548,7 +548,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 
 @container (max-width: 520px) {
   .grp {
-    grid-template-columns: 22px auto minmax(0, 1fr) auto 28px;
+    grid-template-columns: 22px auto minmax(0, 1fr) auto var(--rej-col, 28px);
     grid-template-areas: "tick num who when rej" ". . where where where";
   }
   .rej-btn { opacity: 1; }
@@ -595,7 +595,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .planner-opts .switch { font-size: 13px; }
 .cal-wrap { position: relative; overflow: auto; min-height: 0; border-radius: var(--r-md); border: 1px solid var(--line); }
 
-.calendar { display: grid; min-width: 520px; }
+.calendar { display: grid; min-width: 0; }
 .cal-corner, .cal-head { position: sticky; top: 0; z-index: 2; background: var(--surface-2); border-bottom: 1px solid var(--line); height: 36px; }
 .cal-head { display: grid; place-items: center; font-weight: 600; font-size: 13.5px; color: var(--ink-2); }
 .cal-times { position: relative; }
@@ -644,7 +644,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .unscheduled .pick { border-style: solid; }
 
 /* ---------- responsive ---------- */
-@media (max-width: 1080px) {
+@media (max-width: 960px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
   .planner { position: static; max-height: none; }
 }
@@ -1142,7 +1142,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .calendar { height: 100%; grid-template-rows: 36px minmax(0, 1fr); }
 .cal-day, .cal-times { height: auto; min-height: 0; }
 .event, .busy { min-height: 18px; }
-@media (max-width: 1080px) {
+@media (max-width: 960px) {
   /* stacked under the list: the calendar takes its natural height and the page scrolls */
   .planner { height: auto; min-height: 0; }
   .cal-wrap { flex: none; height: var(--cal-natural, 640px); }
@@ -1191,3 +1191,64 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   /* the day-name row is hidden on phones, so the grid has only the body row */
   .calendar { grid-template-rows: minmax(0, 1fr); }
 }
+
+/* ---------- touch screens: phones and tablets (no mouse hover) ---------- */
+.hint-touch { display: none; }
+@media (hover: none), (pointer: coarse) {
+  /* iOS Safari zooms the whole page when a field with text under 16px gets focus */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* controls that otherwise only show up on mouse hover */
+  .rej-btn, .event .x, .busy .x, .plan-del { opacity: 1; }
+  .head-actions { opacity: 1; }
+
+  /* finger-sized targets (~38-44px) */
+  .grp { --rej-col: 40px; padding-block: 10px; }
+  .rej-btn { width: 40px; height: 40px; }
+  .rej-btn svg { width: 18px; height: 18px; }
+  .ha { width: 40px; height: 40px; }
+  .event .x, .busy .x { width: 32px; height: 32px; top: 2px; inset-inline-end: 2px; }
+  .plan-del { width: 32px; height: 32px; inset-inline-end: 4px; }
+  .plan-tab-wrap.deletable .plan-tab { padding-inline-end: 40px; }
+  .plan-tab { height: 44px; }
+  .fday { width: 40px; height: 40px; }
+  .gchip { min-width: 40px; height: 36px; }
+  .seg button { padding: 9px 14px; }
+  .pick-chip { padding: 8px 12px; }
+  .chip-sel button { width: 30px; height: 30px; }
+  .btn.text { min-height: 40px; }
+  .fbar select, .comfort-hours select, .gen-hours select, #genTeacherAdd, #genAvoidAdd, .cmp-base select { height: 42px; }
+  .term-year { height: 44px; }
+  .term-year select { height: 44px; }
+  .switch { min-height: 40px; }
+  .toast-action { min-height: 40px; }
+  .toast-close { width: 36px; height: 36px; }
+  .info { width: 24px; height: 24px; font-size: 13px; }
+
+  /* a tapped (i) shows its text as a bar at the bottom of the screen */
+  .info::after { position: fixed; top: auto; bottom: 16px; inset-inline: 16px !important; width: auto; font-size: 15px; padding: 12px 14px; }
+  .info::before { display: none !important; }
+
+  /* no hover: hide hover-only polish that would stick after a tap */
+  .grp:hover { background: transparent; }
+  .grp.picked:hover { background: var(--c-soft); }
+  .course:hover { box-shadow: var(--shadow-sm); }
+
+  .hint-desktop { display: none; }
+  .hint-touch { display: inline; }
+}
+@media (max-width: 640px) {
+  .hint-touch { display: none !important; }
+}
+.ob-ask { font-size: 13.5px; color: var(--ink); background: color-mix(in srgb, #d9a514 12%, var(--surface)); border-radius: 8px; padding: 6px 10px; margin-top: 4px; }
+.ob-ask b { font-weight: 700; }
+/* narrow day columns (e.g. iPad landscape): the always-visible (x) would cover the course name, */
+/* so it is hidden there on touch screens - tapping a block jumps to its row, where it can be removed */
+.cal-day { container-type: inline-size; }
+@media (hover: none), (pointer: coarse) {
+  @container (max-width: 170px) {
+    .event .x, .busy .x { display: none; }
+  }
+}
+/* in a narrow block keep the start time and cut the end: "09:00–1..." rather than "...:00-11:00" */
+.event .tm { direction: ltr; text-align: right; }

@@ -849,7 +849,7 @@ function renderPlanner() {
           title="${esc(`${ev.name}\n${type} ${ev.g.group} · ${ev.s.teacher || ev.g.teacher}\nיום ${ev.s.dayLabel}' ${ev.s.start}–${ev.s.end}\n${ev.s.location || ""}`)}">
         <b>${esc(ev.name)}</b>
         <span class="t">${esc(type)} ${esc(ev.g.group)}</span>
-        <span>${range(ev.s)}</span>
+        <span class="tm">${range(ev.s)}</span>
         <span>${esc(ev.s.teacher || ev.g.teacher)}</span>
         ${ev.s.building || ev.s.room ? `<span>${esc([ev.s.building, ev.s.room && `חדר ${ev.s.room}`].filter(Boolean).join(" · "))}</span>` : ""}
         ${ev.ghost ? "" : `<button type="button" class="x" data-unpick="${esc(key)}" aria-label="הסרה מהמערכת">${ICONS.x}</button>`}
@@ -2286,7 +2286,11 @@ function init() {
     if (field) setFilter(e.target.closest(".course").dataset.course, { [field]: e.target.value });
   });
   // hovering a group previews it in the planner
-  const setPreview = (key) => { if (state.preview !== key) { state.preview = key; renderPlanner(); } };
+  const canHover = window.matchMedia("(hover: hover)");
+  const setPreview = (key) => {
+    if (!canHover.matches) key = null; // touch screens: a tap must not leave a preview behind
+    if (state.preview !== key) { state.preview = key; renderPlanner(); }
+  };
   const previewKey = (e) => e.target.closest(".grp:not(.rejected)")?.dataset.key || null;
   list.addEventListener("mouseover", (e) => setPreview(previewKey(e)));
   list.addEventListener("mouseleave", () => setPreview(null));
@@ -2510,8 +2514,9 @@ function applyModeUI() {
   if (!state.offline) return;
   const imported = store.get("biu.snapshotImported", null);
   $("offlineText").textContent = published
-    ? `הנתונים פורסמו ב-${fmtStamp(published.exportedAt)}. הוספת קורסים ורענון נתונים זמינים רק בהרצה במחשב. שינויים שעושים כאן נשמרים במכשיר הזה בלבד.`
-    : "לא נמצאו נתונים שפורסמו. כדי לראות כאן מערכת, מפרסמים אותה מההרצה המקומית במחשב.";
+    ? `הנתונים עודכנו לאחרונה ב-${fmtStamp(published.exportedAt)}. כאן אי אפשר להוסיף קורסים או לרענן נתונים מאתר בר אילן, וכל שינוי שתעשו נשמר במכשיר הזה בלבד.`
+    : "עדיין לא פורסמו נתונים לגרסה הזו.";
+  $("offlineAsk").hidden = !published;
   $("loadSnapshotBtn").hidden = !published || imported === published.exportedAt;
   for (const [kind, text] of [["schedule", "הדפסה / שמירה כ-PDF · מערכת השעות"], ["catalog", "הדפסה / שמירה כ-PDF · קטלוג כל הקבוצות"]]) {
     const b = document.querySelector(`[data-print=${kind}] b`);
