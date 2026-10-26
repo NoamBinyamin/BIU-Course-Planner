@@ -1,6 +1,7 @@
 const DAY_SHORT = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'"];
 const DAY_FULL = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
 const SEMESTERS = { A: "סמסטר א'", B: "סמסטר ב'", summer: "סמסטר קיץ" };
+const MORE_COLORS = ["#e0559a", "#2f8fd8", "#9b51e0", "#14a38b", "#8a6d3b", "#6b7280"];
 const COLORS = ["#3b6fd4", "#d9782b", "#1f9a6a", "#c4466f", "#7a5bd1", "#0e93a6", "#b38a14", "#d0503f", "#4f6aa8", "#5e8a32"];
 const PX_PER_MIN = 0.95; // natural scale; when stacked the calendar gets this height, when sticky it stretches to fit
 
@@ -437,7 +438,7 @@ function courseHeadHTML(course, entry) {
   const busy = state.loading.has(course.key);
   return `
     <div class="course-head" role="button" tabindex="0" aria-expanded="${!state.collapsed.has(course.key)}" data-act="toggle">
-      <div class="course-icon" aria-hidden="true">${esc(course.code.slice(-3))}</div>
+      <button type="button" class="course-icon" data-color-course="${esc(course.key)}" title="שינוי צבע הקורס" aria-label="שינוי צבע הקורס">${esc(course.code.slice(-3))}</button>
       <div class="course-title">
         <h3>${esc(entry ? entry.name : `קורס ${course.code}`)}</h3>
         <p><span>${esc(course.code)}</span>${cr ? `<span>${cr} נ"ז</span>` : ""}<span>${SEMESTERS[course.semester]} ${yearLabel(course.year)}</span></p>
@@ -578,7 +579,7 @@ function categoryHTML(type, items, step, picked) {
     const filtered = filterActive(filterOf(course));
     return `<div class="cat-course" style="--c:${course.color}">
       <div class="cat-course-head">
-        <i class="dot"></i><b>${esc(entryOf(course).name)}</b><span class="muted">${esc(course.code)} · ${gs.length} קבוצות</span>
+        <button type="button" class="dot dot-btn" data-color-course="${esc(course.key)}" title="שינוי צבע הקורס" aria-label="שינוי צבע הקורס"></button><b>${esc(entryOf(course).name)}</b><span class="muted">${esc(course.code)} · ${gs.length} קבוצות</span>
         ${filtered ? '<span class="tag-filter" title="יש סינון פעיל על הקורס הזה בתצוגה לפי קורס">מסונן</span>' : ""}
         ${required && chosen.length > 1 ? `<span class="cat-status dup">${ICONS.warn}נבחרו ${chosen.map((g) => esc(g.group)).join(", ")} – יש לבחור אחת</span>`
           : chosen.length ? `<span class="cat-status on">נבחרה ${chosen.map((g) => esc(g.group)).join(", ")}</span>`
@@ -828,8 +829,9 @@ function renderPlanner() {
   const len = (a, b) => `calc(${(((Math.min(b, end) - Math.max(a, start)) / span) * 100).toFixed(3)}% - 3px)`;
   $("calWrap").style.setProperty("--cal-natural", `${Math.round(span * PX_PER_MIN) + 36}px`);
   // the preview counts as "used", so hovering a group on a hidden day still shows it
-  const allDays = dayColumns([...items.flatMap(({ g }) => timedSessions(g).map((s) => s.day)), ...busy.map((b) => b.day)], friday);
-  const dayList = mobileDayView(allDays, items, busy);
+  const swapDays = swap ? swap.alts.flatMap((gs) => timedSessions(gs[0]).map((s) => s.day)) : [];
+  const allDays = dayColumns([...items.flatMap(({ g }) => timedSessions(g).map((s) => s.day)), ...busy.map((b) => b.day), ...swapDays], friday);
+  const dayList = swap ? allDays : mobileDayView(allDays, items, busy);
   calFrame = { start, end, dayList };
 
   const byDay = new Map(dayList.map((d) => [d, []]));
@@ -874,7 +876,7 @@ function renderPlanner() {
       const id = `${key}@${ev.s.day}${ev.s.start}`;
       const enter = !ev.ghost && !shownEvents.has(id);
       if (!ev.ghost) nextShown.add(id);
-      return `<div class="event ${enter ? "enter" : ""} ${ev.ghost ? "ghost" : ""} ${clash ? "clash" : ""} ${state.preview === key && !ev.ghost ? "hl" : ""}"
+      return `<div class="event ${enter ? "enter" : ""} ${ev.ghost ? "ghost" : ""} ${clash ? "clash" : ""} ${state.preview === key && !ev.ghost ? "hl" : ""} ${swap?.key === key && !ev.ghost ? "dragging" : ""}"
           data-key="${esc(key)}" style="--c:${ev.course.color};top:calc(${at(ev.start)} + 1px);height:${len(ev.start, ev.end)};inset-inline-start:calc(${ev.lane * w}% + 3px);width:calc(${w}% - 6px)"
           title="${esc(`${ev.name}\n${type} ${ev.g.group} · ${ev.s.teacher || ev.g.teacher}\nיום ${ev.s.dayLabel}' ${ev.s.start}–${ev.s.end}\n${ev.s.location || ""}`)}">
         <b>${esc(ev.name)}</b>
@@ -885,7 +887,7 @@ function renderPlanner() {
         ${ev.ghost ? "" : `<button type="button" class="x" data-unpick="${esc(key)}" aria-label="הסרה מהמערכת">${ICONS.x}</button>`}
       </div>`;
     }).join("");
-    html += `<div class="cal-day" data-day="${day}">${lines}${busyHtml}${blocks}</div>`;
+    html += `<div class="cal-day" data-day="${day}">${lines}${busyHtml}${blocks}${swapTargetsHTML(day, at, len)}</div>`;
   });
   cal.innerHTML = html;
   shownEvents = nextShown;
@@ -1317,6 +1319,164 @@ function removeBusy(id) {
   state.busy[state.view] = busyFor().filter((b) => b.id !== id);
   render();
   undoToast(`האילוץ "${item.label || `${item.start}–${item.end}`}" נמחק`);
+}
+
+/* ---------- switching groups on the calendar: drag a class onto another time of the same lecture / tutorial ---------- */
+
+let swap = null; // {key, course, g, type, alts: [[groups at one time], ...], drag, over}
+
+// the other times of the same component; groups that meet at exactly the same time are one target
+function swapOptions(key) {
+  const course = state.courses.find((c) => key.startsWith(c.key + "|"));
+  const g = course && groupsFor(course).find((x) => selKey(course, x) === key);
+  if (!g) return null;
+  const type = g.type || "מפגש";
+  const gs = sectionsFor(course).find(([t]) => t === type)?.[1] || [];
+  const mine = slotOf(g);
+  const slots = new Map();
+  for (const a of gs) {
+    const k = selKey(course, a);
+    if (state.rejected.has(k) || state.selected.has(k) || !timedSessions(a).length) continue;
+    const slot = slotOf(a);
+    if (slot === mine) continue; // same time: nothing moves (the number is picked in the list)
+    if (!slots.has(slot)) slots.set(slot, []);
+    slots.get(slot).push(a);
+  }
+  return { key, course, g, type, alts: [...slots.values()] };
+}
+
+function swapTargetsHTML(day, at, len) {
+  if (!swap) return "";
+  // what else is in the week, without the class being moved
+  const others = selectedGroups(state.view).filter(({ course, g }) => selKey(course, g) !== swap.key).flatMap(({ g }) => timedSessions(g));
+  const busy = busyFor(state.view);
+  return swap.alts.map((gs, i) => {
+    const clash = timedSessions(gs[0]).some((s) => others.some((o) => overlaps(s, o)) || busy.some((b) => overlaps(s, b)));
+    const who = [...new Set(gs.flatMap(teachersOf))];
+    return timedSessions(gs[0]).filter((s) => s.day === day).map((s) => `<div class="swap-target ${clash ? "clash" : ""} ${swap.over === i ? "over" : ""}" data-swap="${i}"
+        style="--c:${swap.course.color};top:calc(${at(toMin(s.start))} + 1px);height:${len(toMin(s.start), toMin(s.end))}"
+        title="${esc(`${swap.type} ${gs.map((g) => g.group).join(" / ")} · ${range(s)}${who.length ? `\n${who.join(", ")}` : ""}${clash ? "\nמתנגש עם שיעור אחר או אילוץ" : ""}`)}">
+      <b>${esc(swap.type)} ${gs.map((g) => esc(g.group)).join("/")}</b>
+      <span>${range(s)}</span>
+      ${who.length ? `<span>${esc(who[0])}${who.length > 1 ? ` +${who.length - 1}` : ""}</span>` : ""}
+      ${clash ? `<i class="st-clash">${ICONS.warn}</i>` : ""}
+    </div>`).join("");
+  }).join("");
+}
+
+function startSwap(key, drag) {
+  const opts = swapOptions(key);
+  if (!opts) return false;
+  if (!opts.alts.length) {
+    toast(`אין מועד אחר ל${opts.type} ב${entryOf(opts.course).name}`);
+    return false;
+  }
+  swap = { ...opts, drag, over: null };
+  state.preview = null;
+  $("calendar").classList.add("swapping");
+  renderPlanner();
+  if (!drag) toast("בוחרים אחד המועדים המסומנים, או נוגעים במקום אחר כדי לבטל");
+  return true;
+}
+
+function endSwap(target) {
+  if (!swap) return;
+  const s = swap;
+  swap = null;
+  $("calendar").classList.remove("swapping");
+  if (target == null || !s.alts[target]) return renderPlanner();
+  const next = s.alts[target][0];
+  checkpoint("החלפת קבוצה");
+  state.selected.delete(s.key);
+  state.selected.add(selKey(s.course, next));
+  render();
+  undoToast(`${entryOf(s.course).name}: ${s.type} ${s.g.group} ← ${next.group}`);
+}
+
+function initSwapDrag() {
+  const cal = $("calendar");
+  let press = null, float = null, swallowClick = false;
+  const cancelPress = () => { clearTimeout(press?.timer); press = null; };
+  const overAt = (x, y) => {
+    const t = document.elementFromPoint(x, y)?.closest?.("[data-swap]");
+    return t ? Number(t.dataset.swap) : null;
+  };
+  const setOver = (i) => {
+    if (!swap || swap.over === i) return;
+    swap.over = i;
+    cal.querySelectorAll("[data-swap]").forEach((t) => t.classList.toggle("over", Number(t.dataset.swap) === i));
+  };
+
+  cal.addEventListener("pointerdown", (e) => {
+    const ev = e.target.closest(".event:not(.ghost)");
+    if (!ev || e.button > 0 || e.target.closest("[data-unpick]") || swap) return;
+    press = { key: ev.dataset.key, x: e.clientX, y: e.clientY, el: ev, mouse: e.pointerType === "mouse" };
+    // touch: a long press marks the other times; a tap then picks one
+    if (!press.mouse) press.timer = setTimeout(() => { swallowClick = true; startSwap(press.key, false); press = null; }, 450);
+  });
+  window.addEventListener("pointermove", (e) => {
+    if (press && !swap) {
+      const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);
+      if (!press.mouse) { if (moved > 10) cancelPress(); return; }
+      if (moved < 6) return;
+      // mouse: start dragging a copy of the class
+      const r = press.el.getBoundingClientRect();
+      const copy = press.el.cloneNode(true);
+      copy.classList.remove("enter", "hl");
+      copy.classList.add("swap-float");
+      copy.removeAttribute("data-tip");
+      Object.assign(copy.style, { width: `${r.width}px`, height: `${r.height}px`, top: "0", left: "0", insetInlineStart: "auto" });
+      const offset = { x: press.x - r.left, y: press.y - r.top };
+      const key = press.key;
+      cancelPress();
+      if (!startSwap(key, true)) return;
+      float = { el: copy, offset };
+      document.body.appendChild(copy);
+      document.body.classList.add("swap-dragging");
+    }
+    if (float) {
+      float.x = e.clientX; float.y = e.clientY;
+      float.el.style.transform = `translate(${e.clientX - float.offset.x}px, ${e.clientY - float.offset.y}px) rotate(-1.5deg)`;
+      setOver(overAt(e.clientX, e.clientY));
+      if (!float.scrolling) autoScroll();
+    }
+  });
+  // near the top or bottom of the window the page scrolls by itself, so far-away times can be reached
+  const autoScroll = () => {
+    if (!float) return;
+    const edge = 70, y = float.y;
+    const speed = y < edge ? -(edge - y) / 3 : y > innerHeight - edge ? (y - (innerHeight - edge)) / 3 : 0;
+    float.scrolling = !!speed;
+    if (!speed) return;
+    window.scrollBy(0, speed);
+    setOver(overAt(float.x, float.y));
+    requestAnimationFrame(autoScroll);
+  };
+  const drop = (e) => {
+    cancelPress();
+    if (!float) return;
+    const target = e.type === "pointerup" ? overAt(e.clientX, e.clientY) : null;
+    float.el.remove();
+    float = null;
+    document.body.classList.remove("swap-dragging");
+    swallowClick = true;
+    endSwap(target);
+  };
+  window.addEventListener("pointerup", drop);
+  window.addEventListener("pointercancel", drop);
+  // the click that ends a drag or a long press isn't a click on the class
+  cal.addEventListener("click", (e) => {
+    if (!swallowClick) return;
+    swallowClick = false;
+    e.stopImmediatePropagation();
+  }, true);
+  // a tap outside the calendar cancels the touch mode
+  document.addEventListener("pointerdown", (e) => { if (swap && !swap.drag && !e.target.closest("#calendar")) endSwap(null); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !swap) return;
+    if (float) { float.el.remove(); float = null; document.body.classList.remove("swap-dragging"); }
+    endSwap(null);
+  });
 }
 
 // drag on an empty part of a day column to block that time
@@ -2704,8 +2864,68 @@ function setupHeroFx() {
   if (still) draw(0, 0); else start();
 }
 
+/* ---------- course colors ---------- */
+
+let colorMenuFor = null, colorCheckpointed = false;
+function openColorMenu(key, anchor) {
+  const course = state.courses.find((c) => c.key === key);
+  if (!course) return;
+  colorMenuFor = key;
+  colorCheckpointed = false;
+  const menu = $("colorMenu");
+  const usedBy = new Map(state.courses.filter((c) => c !== course && termOf(c) === termOf(course)).map((c) => [c.color.toLowerCase(), entryOf(c)?.name || c.code]));
+  $("colorMenuTitle").textContent = `צבע ל${entryOf(course)?.name || course.code}`;
+  $("colorSwatches").innerHTML = [...COLORS, ...MORE_COLORS].map((c) => {
+    const other = usedBy.get(c.toLowerCase());
+    return `<button type="button" class="swatch ${c.toLowerCase() === course.color.toLowerCase() ? "on" : ""} ${other ? "taken" : ""}" data-swatch="${c}" style="--c:${c}"
+      title="${other ? `בשימוש גם ב${esc(other)}` : c}" aria-label="${c}${other ? " (בשימוש)" : ""}"></button>`;
+  }).join("");
+  $("colorCustom").value = course.color;
+  menu.hidden = false;
+  const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
+  menu.style.top = `${r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6}px`;
+}
+function closeColorMenu() { $("colorMenu").hidden = true; colorMenuFor = null; }
+function setCourseColor(color, close) {
+  const course = state.courses.find((c) => c.key === colorMenuFor);
+  if (!course || course.color === color) { if (close) closeColorMenu(); return; }
+  if (!colorCheckpointed) { checkpoint("שינוי צבע קורס"); colorCheckpointed = true; }
+  course.color = color;
+  render();
+  if (close) closeColorMenu();
+  else $("colorSwatches").querySelectorAll(".swatch").forEach((s) => s.classList.toggle("on", s.dataset.swatch.toLowerCase() === color.toLowerCase()));
+}
+
+/* ---------- light / dark ---------- */
+
+function applyTheme(theme) {
+  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+  $("themeSwitch").querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.themeSet === (theme || "auto"))));
+}
+
 function init() {
   setupTooltips();
+  applyTheme(store.get("ui.theme", "auto"));
+  $("themeSwitch").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-theme-set]")?.dataset.themeSet;
+    if (!t) return;
+    store.set("ui.theme", t); // per device, outside the "biu." keys so it isn't published
+    applyTheme(t);
+  });
+  $("colorSwatches").addEventListener("click", (e) => {
+    const c = e.target.closest("[data-swatch]")?.dataset.swatch;
+    if (c) setCourseColor(c, true);
+  });
+  let colorFrame = 0;
+  $("colorCustom").addEventListener("input", (e) => {
+    cancelAnimationFrame(colorFrame);
+    colorFrame = requestAnimationFrame(() => setCourseColor(e.target.value, false));
+  });
+  $("colorCustom").addEventListener("change", (e) => setCourseColor(e.target.value, true));
+  document.addEventListener("pointerdown", (e) => { if (!$("colorMenu").hidden && !e.target.closest("#colorMenu, [data-color-course]")) closeColorMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("colorMenu").hidden) closeColorMenu(); });
   setupHeroFx();
   idleLookup();
   setAddReady(false);
@@ -2765,6 +2985,8 @@ function init() {
       if (e.target.closest("[data-act=clearf]")) { checkpoint("ניקוי סינון"); delete state.filters[courseKey]; render(); }
       return;
     }
+    const colorBtn = e.target.closest("[data-color-course]");
+    if (colorBtn) return openColorMenu(colorBtn.dataset.colorCourse, colorBtn);
     const act = e.target.closest("[data-act]")?.dataset.act;
     const row = e.target.closest(".grp");
     if (row) return toggleUnit(row.dataset.keys.split(","));
@@ -2937,6 +3159,7 @@ function init() {
   $("blkDelete").addEventListener("click", () => { $("blockDialog").close(); removeBusy(editingBusy); });
   document.querySelectorAll("dialog [data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
   initBusyDrag();
+  initSwapDrag();
   initMobileDays();
   window.addEventListener("resize", fitGenPanel);
 
@@ -2988,6 +3211,11 @@ function init() {
   window.addEventListener("beforeprint", preparePrint);
 
   $("calendar").addEventListener("click", (e) => {
+    // touch: after a long press, a tap picks one of the marked times (or anywhere else cancels)
+    if (swap && !swap.drag) {
+      const t = e.target.closest("[data-swap]");
+      return endSwap(t ? Number(t.dataset.swap) : null);
+    }
     const unbusy = e.target.closest("[data-unbusy]")?.dataset.unbusy;
     if (unbusy) return removeBusy(unbusy);
     const busyEl = e.target.closest("[data-busy]");
