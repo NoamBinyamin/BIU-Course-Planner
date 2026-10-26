@@ -59,27 +59,17 @@
   </form>
 
   <nav class="plansbar" aria-label="שנה, סמסטר וחלופות">
-    <div class="termnav">
-      <label class="term-year">
+    <div class="pb-row pb-term">
+      <span class="pb-label">שנה וסמסטר</span>
+      <div class="termnav">
+        <label class="term-year">
         <span class="sr-only">שנת לימודים</span>
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
         <select id="termYear"></select>
       </label>
-      <span class="crumb" aria-hidden="true">‹</span>
-      <div id="termSem" class="seg" role="tablist" aria-label="סמסטר"></div>
-      <span class="crumb" aria-hidden="true">‹</span>
-    </div>
-    <div class="plan-tabs" id="planTabs" role="tablist" aria-label="חלופות"></div>
-    <div class="newplan" id="newPlan">
-      <button type="button" class="btn text" id="newPlanBtn" aria-haspopup="menu" aria-expanded="false">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>חלופה חדשה
-      </button>
-      <div class="menu" role="menu" hidden>
-        <button type="button" role="menuitem" data-new="copy"><b>שכפול המערכת הנוכחית</b><span>מתחילים מאותן בחירות ומשנים</span></button>
-        <button type="button" role="menuitem" data-new="empty"><b>מערכת ריקה</b><span>בונים מאפס</span></button>
+        <div id="termSem" class="seg" role="tablist" aria-label="סמסטר"></div>
       </div>
-    </div>
-    <div class="bar-actions">
+      <div class="bar-actions">
       <button type="button" class="btn compare-btn" id="generateBtn">
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><path d="M14 11v6M11 14h6"/></svg>
         <span>בנייה אוטומטית</span>
@@ -88,6 +78,22 @@
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7h11l-3-3M16 13H5l3 3"/></svg>
         <span>השוואת חלופות</span>
       </button>
+    </div>
+    </div>
+    <div class="pb-row pb-plans">
+      <span class="pb-label">החלופות שלי</span>
+      <div class="plan-scroll" id="planScroll">
+        <div class="plan-tabs" id="planTabs" role="tablist" aria-label="חלופות"></div>
+      </div>
+      <div class="newplan" id="newPlan">
+      <button type="button" class="btn text" id="newPlanBtn" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>חלופה חדשה
+      </button>
+      <div class="menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-new="copy"><b>שכפול המערכת הנוכחית</b><span>מתחילים מאותן בחירות ומשנים</span></button>
+        <button type="button" role="menuitem" data-new="empty"><b>מערכת ריקה</b><span>בונים מאפס</span></button>
+      </div>
+    </div>
     </div>
   </nav>
 
@@ -163,7 +169,7 @@
             <span class="info" tabindex="0" data-tip="קבוצות שבאתר של בר אילן עדיין לא רשום להן מרצה או מתרגל (מופיעות ברשימה כ'טרם נקבע') לא ייכללו באפשרויות.">i</span>
           </div>
           <div class="opt-row">
-            <label class="switch"><input type="checkbox" id="genUseBlocks"><span class="track"></span>הזמנים החסומים שלי</label>
+            <label class="switch"><input type="checkbox" id="genUseBlocks"><span class="track"></span>האילוצים שלי</label>
             <span class="info" tabindex="0" data-tip="שעות שסימנת בלוח כתפוסות (עבודה, אימון…). כשהאפשרות פעילה, המערכת לא תציע קבוצות שמתנגשות בהן.">i</span>
           </div>
           <div class="opt-row">
@@ -200,7 +206,11 @@
   </section>
 
   <div class="layout" id="buildView">
-    <section class="courses" aria-label="הקורסים שלי">
+    <section class="courses" aria-labelledby="coursesTitle">
+      <div class="courses-head" id="coursesHead">
+        <h2 id="coursesTitle">הקורסים בסמסטר הזה</h2>
+        <span class="courses-count" id="coursesCount"></span>
+      </div>
       <div class="toolbar" id="toolbar">
         <div class="tb-views">
           <div id="groupByTabs" class="seg" role="tablist" aria-label="חלוקת הרשימה">
@@ -227,7 +237,7 @@
           <p id="plannerWarn" class="planner-warn" role="alert" hidden></p>
         </div>
         <div class="planner-actions">
-          <button type="button" class="btn icon-btn" id="addBlockBtn" title="חסימת זמן (אפשר גם לגרור על הלוח)" aria-label="חסימת זמן">
+          <button type="button" class="btn icon-btn" id="addBlockBtn" title="הוספת אילוץ (אפשר גם לגרור על הלוח)" aria-label="הוספת אילוץ">
             <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2M5 15L15 5"/></svg>
           </button>
           <button type="button" class="btn icon-btn" id="renamePlanBtn" title="שינוי שם החלופה" aria-label="שינוי שם">
@@ -256,7 +266,7 @@
           <span>סמנו קבוצות ברשימה כדי לשבץ אותן כאן. מעבר עם העכבר על קבוצה מציג אותה בתצוגה מקדימה.</span>
         </div>
       </div>
-      <p class="cal-hint muted"><span class="hint-desktop">טיפ: גוררים על שטח ריק בלוח כדי לחסום זמן (עבודה, אימון…).</span><span class="hint-mobile">מחליקים ימינה ושמאלה כדי לעבור בין הימים. לחסימת זמן – כפתור השעון למעלה.</span><span class="hint-touch">לחסימת זמן (עבודה, אימון…) – כפתור השעון שבראש הלוח.</span></p>
+      <p class="cal-hint muted"><span class="hint-desktop">טיפ: גוררים על שטח ריק בלוח כדי להוסיף אילוץ – זמן שאתם לא פנויים בו (עבודה, אימון…).</span><span class="hint-mobile">מחליקים ימינה ושמאלה כדי לעבור בין הימים. להוספת אילוץ – כפתור השעון למעלה.</span><span class="hint-touch">להוספת אילוץ (עבודה, אימון…) – כפתור השעון שבראש הלוח.</span></p>
       <div id="unscheduled" class="unscheduled"></div>
       <div class="notes">
         <label for="planNotes">הערות לחלופה הזו</label>
@@ -281,8 +291,8 @@
 
 <dialog id="blockDialog" class="dlg" aria-labelledby="blockTitle">
   <form id="blockForm" method="dialog">
-    <h3 id="blockTitle">זמן חסום</h3>
-    <p class="muted">שעות שתפוסות ממילא. קבוצות שמתנגשות בהן יסומנו, והבנייה האוטומטית תימנע מהן.</p>
+    <h3 id="blockTitle">אילוץ</h3>
+    <p class="muted">אילוץ הוא זמן שבו אתם לא פנויים – עבודה, אימון, הסעה. קבוצות שמתנגשות בו יסומנו, והבנייה האוטומטית תימנע מהן.</p>
     <label class="dlg-field">תיאור<input id="blkLabel" maxlength="40" placeholder="עבודה, אימון, הסעה…"></label>
     <div class="dlg-row">
       <label class="dlg-field">יום<select id="blkDay"></select></label>
@@ -309,7 +319,7 @@
     </div>
     <p class="dlg-hint">התאריכים משוערים – כדאי לוודא מול לוח השנה האקדמי של בר אילן. חגים וחופשות לא מוחרגים אוטומטית.</p>
     <label class="switch"><input type="checkbox" id="icsExams" checked><span class="track"></span>מועדי בחינות</label>
-    <label class="switch"><input type="checkbox" id="icsBlocks"><span class="track"></span>הזמנים החסומים שלי</label>
+    <label class="switch"><input type="checkbox" id="icsBlocks"><span class="track"></span>האילוצים שלי</label>
     <p id="icsError" class="dlg-error" hidden></p>
     <details class="howto">
       <summary>איך מכניסים את הקובץ ליומן?</summary>

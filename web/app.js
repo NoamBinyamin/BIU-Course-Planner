@@ -255,7 +255,7 @@ function conflictsWith(course, g, picked) {
   const busy = busyFor(termOf(course)).filter((b) => mine.some((s) => overlaps(s, b))).map((b) => ({ busy: b }));
   return [...groups, ...busy];
 }
-const clashName = (x) => (x.busy ? `זמן חסום${x.busy.label ? ` (${x.busy.label})` : ""}` : `${entryOf(x.course).name} ${x.g.group}`);
+const clashName = (x) => (x.busy ? `אילוץ${x.busy.label ? ` (${x.busy.label})` : ""}` : `${entryOf(x.course).name} ${x.g.group}`);
 
 const credits = (g) => Number(g.credits) || 0;
 // BIU splits a course's credits between its components (lecture, tutorial...)
@@ -406,6 +406,10 @@ function setTerm(term) {
 
 function renderToolbar() {
   renderTermNav();
+  const n = visibleCourses().length;
+  $("coursesHead").hidden = !state.courses.length;
+  $("coursesTitle").textContent = `הקורסים ב${termLabel(state.view)}`;
+  $("coursesCount").textContent = n ? `${n} ${n === 1 ? "קורס" : "קורסים"}` : "";
   $("toolbar").hidden = !visibleCourses().length;
   $("onlySelected").checked = state.onlySelected;
   $("hideConflicts").checked = state.hideConflicts;
@@ -447,7 +451,9 @@ function courseHeadHTML(course, entry) {
     </div>`;
 }
 
-// one row in the list: a single group, or several same-time groups when merging is on
+// one row in the list: a single group, or several same-time groups when merging is on.
+// Every row is a single line (two fixed lines in a narrow card) so rows keep the same height;
+// details that don't fit (conflicts, extra sessions/places) live in tooltips.
 function unitRowHTML(course, gs, picked) {
   const keys = gs.map((g) => selKey(course, g));
   const chosen = gs.find((g) => state.selected.has(selKey(course, g)));
@@ -455,28 +461,33 @@ function unitRowHTML(course, gs, picked) {
   const allRejected = keys.every((k) => state.rejected.has(k));
   const lead = chosen || gs.find((g) => !state.rejected.has(selKey(course, g))) || gs[0];
   const clashes = conflictsWith(course, lead, picked).filter((x) => x.busy || !keys.includes(selKey(x.course, x.g)));
-  const sessions = lead.sessions.length ? lead.sessions : [{}];
-  const when = sessions.map((s) => s.start
-    ? `<span><b>${esc(s.dayLabel)}'</b>${range(s)}</span>`
-    : `<span class="tba">מועד לא נקבע</span>`).join("");
+  const more = (n, all) => (n ? `<span class="more" title="${esc(all)}">+${n}</span>` : "");
 
-  let num, who, where;
-  if (gs.length === 1) {
-    num = esc(lead.group);
-    who = esc(lead.teacher);
-    where = whereLines(lead).filter(Boolean).map((w) => `<span>${esc(w)}</span>`).join("");
-  } else {
-    num = `<span class="gchips">${gs.map((g) => {
-      const k = selKey(course, g);
-      return `<button type="button" class="gchip ${state.selected.has(k) ? "on" : ""} ${state.rejected.has(k) ? "rej" : ""}"
-        data-pick="${esc(k)}" title="${esc(`קבוצה ${g.group} · ${g.teacher}${whereLines(g)[0] ? ` · ${whereLines(g)[0]}` : ""}`)}">${esc(g.group)}</button>`;
-    }).join("")}</span>`;
-    who = esc([...new Set(gs.flatMap(teachersOf))].join(", "));
-    const places = [...new Set(gs.flatMap(whereLines).filter(Boolean))];
-    where = places.slice(0, 2).map((w) => `<span>${esc(w)}</span>`).join("") +
-      (places.length > 2 ? `<span>ועוד ${places.length - 2} מיקומים</span>` : "");
+  // sessions at the same hours share one label: "ב', ג' 10:00–12:00"
+  const timed = timedSessions(lead);
+  const slots = [];
+  for (const s of timed) {
+    const slot = slots.find((x) => x.start === s.start && x.end === s.end);
+    if (slot) slot.days.push(s.dayLabel); else slots.push({ start: s.start, end: s.end, days: [s.dayLabel] });
   }
-  const clashText = clashes.map(clashName).join(", ");
+  const slotText = (x) => `${x.days.map((d) => `${d}'`).join(", ")} ${x.start}–${x.end}`;
+  const when = slots.length
+    ? `<b>${esc(slots[0].days.map((d) => `${d}'`).join(", "))}</b>${range(slots[0])}${more(slots.length - 1, slots.map(slotText).join(" · "))}`
+    : '<span class="tba">מועד לא נקבע</span>';
+
+  const places = [...new Set(gs.flatMap(whereLines).filter(Boolean))];
+  const where = places.length ? `<span class="ell">${esc(places[0])}</span>${more(places.length - 1, places.join(" · "))}` : '<span class="tba">—</span>';
+  const teachers = [...new Set(gs.flatMap(teachersOf))];
+  const who = teachers.length ? `<span class="ell">${esc(teachers[0])}</span>${more(teachers.length - 1, teachers.join(", "))}` : '<span class="tba">טרם נקבע</span>';
+
+  const num = gs.length === 1 ? esc(lead.group)
+    : `<span class="gchips" title="${gs.length} קבוצות באותה שעה – בוחרים את מספר הקבוצה">${gs.map((g) => {
+        const k = selKey(course, g);
+        return `<button type="button" class="gchip ${state.selected.has(k) ? "on" : ""} ${state.rejected.has(k) ? "rej" : ""}"
+          data-pick="${esc(k)}" title="${esc(`קבוצה ${g.group} · ${g.teacher || "מרצה טרם נקבע"}${whereLines(g)[0] ? ` · ${whereLines(g)[0]}` : ""}`)}">${esc(g.group)}</button>`;
+      }).join("")}</span>`;
+
+  const clashText = clashes.length ? `מתנגש עם ${clashes.map(clashName).join(", ")}` : "";
   const rejectLabel = allRejected ? "ביטול הפסילה" : gs.length > 1 ? "פסילת כל הקבוצות בשעה הזו" : "פסילת הקבוצה";
   return `
     <li class="grp ${isSel ? "picked" : ""} ${clashes.length ? "conflict" : ""} ${allRejected ? "rejected" : ""} ${gs.length > 1 ? "merged" : ""}"
@@ -484,14 +495,17 @@ function unitRowHTML(course, gs, picked) {
         data-key="${esc(selKey(course, lead))}" data-keys="${esc(keys.join(","))}">
       <span class="tick">${ICONS.check}</span>
       <span class="num">${num}</span>
-      <span class="who" title="${esc(who)}">${who || '<span class="tba">טרם נקבע</span>'}</span>
+      <span class="who">${who}</span>
       <span class="when">${when}</span>
-      <span class="where">${where || '<span class="tba">—</span>'}</span>
+      <span class="where">${where}</span>
+      ${clashes.length && !allRejected
+        ? `<button type="button" class="flag" data-clash="${esc(clashText)}" title="${esc(clashText)}" aria-label="${esc(clashText)}">${ICONS.warn}</button>`
+        : '<span class="flag-space"></span>'}
       <button type="button" class="rej-btn" data-reject="${esc(keys.join(","))}" title="${rejectLabel}" aria-label="${rejectLabel}">${allRejected ? ICONS.undo : ICONS.ban}</button>
-      ${gs.length > 1 ? `<span class="merge-note">${gs.length} קבוצות באותה שעה – בחרו מספר קבוצה</span>` : ""}
-      ${clashes.length && !allRejected ? `<span class="clash-note">${ICONS.warn}מתנגש עם ${esc(clashText)}</span>` : ""}
     </li>`;
 }
+
+const openFilters = new Set(); // course keys whose folded (phone) filter bar is open
 
 function filterBarHTML(course) {
   const f = filterOf(course);
@@ -504,7 +518,13 @@ function filterBarHTML(course) {
   const opts = (list, cur, empty) => `<option value="">${empty}</option>` +
     list.map((v) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(v)}</option>`).join("");
   const shown = all.filter((g) => passesFilter(course, g)).length;
-  return `<div class="fbar" role="group" aria-label="סינון קבוצות">
+  // narrow cards (phones) fold the bar into one "filter" line that opens on tap
+  const active = (f.days?.length ? 1 : 0) + (f.teacher ? 1 : 0) + (f.from || f.to ? 1 : 0);
+  const open = openFilters.has(course.key);
+  return `<div class="fbar ${open ? "open" : ""}" role="group" aria-label="סינון קבוצות">
+    <button type="button" class="fbar-toggle" data-act="togglef" aria-expanded="${open}">
+      ${ICONS.filter}<span>סינון${active ? ` <b>· ${active} פעילים</b>` : ""}</span>${ICONS.chev}
+    </button>
     <span class="fbar-label">${ICONS.filter}סינון</span>
     <div class="fdays">${days.map((d) => `<button type="button" class="fday ${f.days?.includes(d) ? "on" : ""}" data-day="${d}" aria-pressed="${!!f.days?.includes(d)}" title="יום ${DAY_FULL[d]}">${DAY_SHORT[d]}</button>`).join("")}</div>
     ${teachers.length > 1 ? `<select data-f="teacher" aria-label="מרצה">${opts(teachers, f.teacher, "כל המרצים")}</select>` : ""}
@@ -614,6 +634,13 @@ function courseBodyHTML(course, entry, picked) {
 }
 
 function welcomeHTML() {
+  // the view-only copy cannot add courses, so it only explains what is (not) there
+  if (state.offline) {
+    return `<div class="welcome">
+      <h2>עדיין לא פורסמו קורסים</h2>
+      <p>זו גרסת צפייה: הקורסים מגיעים מהנתונים שמפרסם בעל האתר, ועדיין לא פורסמו כאן קורסים.</p>
+    </div>`;
+  }
   return `<div class="welcome">
     <h2>בונים את מערכת השעות</h2>
     <p>מוסיפים את הקורסים של הסמסטר, והמערכת מושכת מאתר בר אילן את כל קבוצות ההרצאה והתרגול שלהם.</p>
@@ -646,8 +673,10 @@ function renderCourses() {
   if (!visibleCourses().length) {
     const others = [...new Set(state.courses.map(termOf))];
     list.innerHTML = `<div class="welcome term-empty">
-      <h2>אין עדיין קורסים ב${esc(termLabel(state.view))}</h2>
-      <p>מוסיפים קורס בשורה למעלה – הוא יישמר תחת השנה והסמסטר האלה, עם מערכות וחלופות משלהם.</p>
+      <h2>${state.offline ? "לא פורסמו קורסים" : "אין עדיין קורסים"} ב${esc(termLabel(state.view))}</h2>
+      <p>${state.offline
+        ? "בגרסת הצפייה מוצגים רק הקורסים שפורסמו. אפשר לעבור לסמסטר שיש בו קורסים:"
+        : "מוסיפים קורס בשורה למעלה – הוא יישמר תחת השנה והסמסטר האלה, עם מערכות וחלופות משלהם."}</p>
       <div class="term-jump"><span class="muted">יש קורסים ב:</span>${others.map((t) =>
         `<button type="button" class="pick on" data-term="${esc(t)}">${esc(termLabel(t))} <b>${state.courses.filter((c) => termOf(c) === t).length}</b></button>`).join("")}</div>
     </div>`;
@@ -829,10 +858,10 @@ function renderPlanner() {
     layoutLanes(events);
     const dayBusy = busy.filter((b) => b.day === day);
     const busyHtml = dayBusy.map((b) => {
-      return `<div class="busy" data-busy="${esc(b.id)}" style="top:calc(${at(toMin(b.start))} + 1px);height:${len(toMin(b.start), toMin(b.end))}" title="${esc(`${b.label || "זמן חסום"} · ${b.start}–${b.end}
+      return `<div class="busy" data-busy="${esc(b.id)}" style="top:calc(${at(toMin(b.start))} + 1px);height:${len(toMin(b.start), toMin(b.end))}" title="${esc(`${b.label || "אילוץ"} · ${b.start}–${b.end}
 לחיצה לעריכה`)}">
-        <b>${esc(b.label || "זמן חסום")}</b><span>${range(b)}</span>
-        <button type="button" class="x" data-unbusy="${esc(b.id)}" aria-label="הסרת הזמן החסום">${ICONS.x}</button>
+        <b>${esc(b.label || "אילוץ")}</b><span>${range(b)}</span>
+        <button type="button" class="x" data-unbusy="${esc(b.id)}" aria-label="הסרת האילוץ">${ICONS.x}</button>
       </div>`;
     }).join("");
     const blocks = events.map((ev) => {
@@ -894,6 +923,13 @@ function renderPlans() {
       ${deletable ? `<button type="button" class="plan-del" data-delplan="${p.id}" title="מחיקת החלופה (אפשר לבטל)" aria-label="מחיקת ${esc(p.name)}">${ICONS.x}</button>` : ""}
     </div>`;
   }).join("");
+  // keep the open plan visible inside the sideways-scrolling strip
+  const on = $("planTabs").querySelector(".plan-tab-wrap.on");
+  const strip = $("planScroll");
+  if (on && strip.scrollWidth > strip.clientWidth) {
+    const a = on.getBoundingClientRect(), b = strip.getBoundingClientRect();
+    if (a.left < b.left || a.right > b.right) strip.scrollLeft += a.left < b.left ? a.left - b.left - 12 : a.right - b.right + 12;
+  }
   $("compareBtn").classList.toggle("on", state.comparing);
   $("compareBtn").querySelector("span").textContent = state.comparing ? "חזרה לבנייה" : "השוואת חלופות";
   $("generateBtn").classList.toggle("on", state.generating);
@@ -1215,7 +1251,7 @@ function openBusyDialog(busy) {
   $("blkStart").value = busy?.start || "09:00";
   $("blkEnd").value = busy?.end || "12:00";
   $("blkDelete").hidden = !editingBusy;
-  $("blockTitle").textContent = editingBusy ? "עריכת זמן חסום" : "זמן חסום חדש";
+  $("blockTitle").textContent = editingBusy ? "עריכת אילוץ" : "אילוץ חדש";
   $("blkError").hidden = true;
   $("blockDialog").showModal();
   $("blkLabel").focus();
@@ -1229,23 +1265,23 @@ function saveBusy(e) {
     $("blkError").hidden = false;
     return;
   }
-  checkpoint(editingBusy ? "עריכת זמן חסום" : "הוספת זמן חסום");
+  checkpoint(editingBusy ? "עריכת אילוץ" : "הוספת אילוץ");
   const item = { id: editingBusy || uid(), day: Number($("blkDay").value), start, end, label: $("blkLabel").value.trim() };
   const list = busyFor().filter((b) => b.id !== item.id);
   state.busy[state.view] = [...list, item].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
   $("blockDialog").close();
   render();
   const hit = selectedGroups().filter(({ g }) => timedSessions(g).some((s) => overlaps(s, item)));
-  if (hit.length) toast(`הזמן החסום מתנגש עם ${hit.map(({ course, g }) => `${entryOf(course).name} ${g.group}`).join(", ")}`, "warn");
+  if (hit.length) toast(`האילוץ מתנגש עם ${hit.map(({ course, g }) => `${entryOf(course).name} ${g.group}`).join(", ")}`, "warn");
 }
 
 function removeBusy(id) {
   const item = busyFor().find((b) => b.id === id);
   if (!item) return;
-  checkpoint("מחיקת זמן חסום");
+  checkpoint("מחיקת אילוץ");
   state.busy[state.view] = busyFor().filter((b) => b.id !== id);
   render();
-  undoToast(`הזמן החסום "${item.label || `${item.start}–${item.end}`}" נמחק`);
+  undoToast(`האילוץ "${item.label || `${item.start}–${item.end}`}" נמחק`);
 }
 
 // drag on an empty part of a day column to block that time
@@ -1747,7 +1783,7 @@ function buildIcs({ start, end, exams, busy }) {
   }
   if (busy) {
     for (const b of busyFor()) {
-      event(`busy-${b.id}`, firstOn(b.day), b.start, b.end, b.label || "זמן חסום", "", "זמן חסום במערכת הקורסים", `RRULE:FREQ=WEEKLY;UNTIL=${until}`);
+      event(`busy-${b.id}`, firstOn(b.day), b.start, b.end, b.label || "אילוץ", "", "אילוץ במערכת הקורסים", `RRULE:FREQ=WEEKLY;UNTIL=${until}`);
       count++;
     }
   }
@@ -1846,7 +1882,7 @@ function printSheetHTML() {
     layoutLanes(events);
     const busyHtml = busy.filter((b) => b.day === day).map((b) =>
       `<div class="ps-busy" style="top:${pct((toMin(b.start) - minM) / span)};height:${pct((toMin(b.end) - toMin(b.start)) / span)}">
-        <b>${esc(b.label || "זמן חסום")}</b><span><bdi dir="ltr">${esc(b.start)}–${esc(b.end)}</bdi></span></div>`).join("");
+        <b>${esc(b.label || "אילוץ")}</b><span><bdi dir="ltr">${esc(b.start)}–${esc(b.end)}</bdi></span></div>`).join("");
     return `<div class="ps-col">${bands}${busyHtml}${events.map((ev) => {
       const w = 100 / ev.lanes;
       const mins = ev.end - ev.start;
@@ -1926,7 +1962,7 @@ function printSheetHTML() {
       <div class="ps-legend">${legend}</div>
       ${footer}
     </section>
-    <section class="ps-page">
+    <section class="ps-page ps-flow">
       ${header("פירוט הקבוצות ומועדי הבחינות")}
       <h2>הקבוצות שבחרתי</h2>
       <table class="ps-table">
@@ -2042,6 +2078,172 @@ function pdfName(kind) {
   const when = termLabel(state.view).replace(" · ", " ");
   const name = kind === "catalog" ? `קטלוג קבוצות - ${when}` : `${activePlan().name} - ${when}`;
   return name.replace(/[\\/:*?"<>|]/g, "").trim() + ".pdf";
+}
+
+/* ---------- PDF made in the browser (view-only copy: no server) ---------- */
+
+// loaded only when someone exports; html2canvas draws the sheet, jsPDF assembles the file
+const PDF_LIBS = [
+  "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+];
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const el = document.createElement("script");
+    el.src = src;
+    el.onload = resolve;
+    el.onerror = () => { el.remove(); reject(new Error("load failed")); };
+    document.head.appendChild(el);
+  });
+}
+
+// html2canvas 1.4 cannot parse color(srgb r g b / a), which is what color-mix() computes to:
+// rewrite those colors as rgba() on every element of the copy it draws from
+const COLOR_PROPS = ["color", "background-color", "background-image", "border-top-color", "border-right-color",
+  "border-bottom-color", "border-left-color", "box-shadow", "outline-color", "text-decoration-color"];
+function flattenColors(doc) {
+  const toRgba = (v) => v.replace(/color\(srgb\s+([\d.e-]+)\s+([\d.e-]+)\s+([\d.e-]+)(?:\s*\/\s*([\d.e-]+))?\)/g,
+    (_, r, g, b, a) => `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a ?? 1})`);
+  for (const el of doc.querySelectorAll(".pdf-stage, .pdf-stage *")) {
+    const cs = doc.defaultView.getComputedStyle(el);
+    for (const prop of COLOR_PROPS) {
+      const v = cs.getPropertyValue(prop);
+      if (v.includes("color(")) el.style.setProperty(prop, toRgba(v), "important");
+    }
+  }
+}
+
+// opens the browser's print dialog with the designed sheet (it can save as PDF)
+function printAs(kind) {
+  printKind = kind;
+  preparePrint();
+  window.print();
+  printKind = null;
+}
+
+// The print rules (@media print in style.css), re-scoped to a ".pdf-stage" box so the
+// designed sheet can be laid out on screen for html2canvas.
+function stageCss() {
+  const out = [];
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { continue; }
+    for (const rule of rules) {
+      if (!(rule instanceof CSSMediaRule) || !/\bprint\b/.test(rule.media.mediaText)) continue;
+      for (const r of rule.cssRules) {
+        if (!(r instanceof CSSStyleRule)) continue;
+        const sel = r.selectorText.split(",").map((x) => x.trim())
+          .filter((x) => !/^(html|body)\b/.test(x))          // page-level rules (hide everything else, white page)
+          .map((x) => `.pdf-stage ${x}`).join(", ");
+        if (sel) out.push(`${sel} { ${r.style.cssText} }`);
+      }
+    }
+  }
+  return out.join("\n");
+}
+
+// Lays the print sheet out in an A4-wide box pinned to the top of the viewport (behind a
+// "preparing" overlay) and photographs it slice by slice. Works on iPhone / iPad, where the
+// browser's print dialog is unreliable. html2canvas only measures this reliably when the box
+// sits at the viewport's top-left, so the page is scrolled to the top meanwhile and restored after.
+async function exportPdfInBrowser(kind) {
+  printKind = kind;
+  preparePrint();
+  printKind = null;
+  const overlay = document.createElement("div");
+  overlay.className = "pdf-busy";
+  overlay.innerHTML = '<span class="spinner"></span><span>מכין את קובץ ה-PDF…</span>';
+  document.body.appendChild(overlay);
+  const scrollBack = window.scrollY;
+  let stage;
+  try {
+    await Promise.all(PDF_LIBS.map(loadScript));
+    const portrait = kind === "catalog";
+    const W = portrait ? 794 : 1123, H = portrait ? 1123 : 794; // A4 at 96 px per inch
+    const MARGIN = 38;                                            // ~10mm
+    if (!$("pdfStageCss")) {
+      const st = document.createElement("style");
+      st.id = "pdfStageCss";
+      st.textContent = stageCss() + `
+        .pdf-stage { position: fixed; top: 0; left: 0; z-index: -1; pointer-events: none; background: #fff; direction: rtl; }
+        .pdf-stage .print-sheet { display: block; }
+        .pdf-stage .ps-page { box-sizing: border-box; }
+        .pdf-stage .pc-gap-top, .pdf-stage .pc-gap-bottom { height: 8px; }`;
+      document.head.appendChild(st);
+    }
+    stage = document.createElement("div");
+    stage.className = "pdf-stage";
+    stage.setAttribute("aria-hidden", "true");
+    stage.style.width = `${W}px`;
+    stage.innerHTML = `<div class="print-sheet">${$("printSheet").innerHTML}</div>`;
+    stage.querySelectorAll(".ps-page").forEach((el) => {
+      el.style.padding = el.classList.contains("ps-flow") ? `0 ${MARGIN}px` : `34px ${MARGIN}px`;
+      if (!el.classList.contains("ps-flow")) el.style.height = `${H}px`;
+    });
+    stage.querySelectorAll(".pc-sheet").forEach((el) => { el.style.padding = `0 ${MARGIN + 4}px`; });
+    document.body.appendChild(stage);
+    window.scrollTo({ top: 0, behavior: "instant" });
+    await document.fonts.ready;
+
+    const total = Math.ceil(stage.getBoundingClientRect().height);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: portrait ? "portrait" : "landscape", unit: "mm", format: "a4", compress: true });
+    const mmW = portrait ? 210 : 297, mm = mmW / W;
+    // one horizontal slice of the stage, in stage coordinates
+    const shot = (y, h) => window.html2canvas(stage, {
+      scale: 2, backgroundColor: "#ffffff", logging: false, onclone: flattenColors,
+      x: 0, y, width: W, height: h, windowWidth: W, windowHeight: total,
+    });
+    const add = (canvas, top, h, first) => {
+      if (!first) pdf.addPage();
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, top * mm, mmW, h * mm);
+    };
+    const top0 = stage.getBoundingClientRect().top;
+    const at = (el) => Math.round(el.getBoundingClientRect().top - top0);
+
+    // flowing content is cut into pages between rows / headings, never through one
+    let first = true;
+    const flow = async (from, to, cutSel) => {
+      const avail = H - 2 * MARGIN;
+      const cuts = [...stage.querySelectorAll(cutSel)].map(at).filter((c) => c > from && c < to).sort((a, b) => a - b);
+      let y = from;
+      while (y < to - 2) {
+        let next = Math.min(to, y + avail);
+        if (next < to) {
+          const fit = cuts.filter((c) => c > y + 40 && c <= y + avail);
+          if (fit.length) next = fit[fit.length - 1];
+        }
+        add(await shot(y, next - y), MARGIN, next - y, first);
+        first = false;
+        y = next;
+      }
+    };
+    if (!portrait) {
+      // timetable: the calendar is one fixed page; the details page may run over several
+      for (const page of stage.querySelectorAll(".ps-page")) {
+        const top = at(page);
+        if (page.classList.contains("ps-flow")) await flow(top, top + page.offsetHeight, ".ps-flow h2, .ps-flow tbody tr, .ps-flow .ps-notes, .ps-flow .ps-footer");
+        else { add(await shot(top, H), 0, H, first); first = false; }
+      }
+    } else {
+      await flow(0, total, ".pc-course, .pc-course h3, .pc-table tbody tr:not(:first-child), .ps-footer");
+    }
+    const name = pdfName(kind);
+    pdf.save(name);
+    toast(`הקובץ נשמר: ${name}`);
+  } catch (e) {
+    console.warn("in-browser PDF export failed:", e);
+    // no internet for the libraries (or a very old browser): fall back to the print dialog
+    toast("לא הצלחתי ליצור קובץ PDF כאן – נפתח חלון ההדפסה, ומשם אפשר לשמור כ-PDF.", "warn");
+    stage?.remove();
+    stage = null;
+    printAs(kind);
+  } finally {
+    stage?.remove();
+    overlay.remove();
+    window.scrollTo({ top: scrollBack, behavior: "instant" });
+  }
 }
 
 // a real PDF file rendered by the server - no browser print header/footer
@@ -2251,6 +2453,8 @@ function init() {
     const tryBtn = e.target.closest("[data-try]");
     if (tryBtn) { $("codeInput").value = tryBtn.dataset.try; $("codeInput").focus(); return scheduleLookup(); }
     const courseKey = e.target.closest(".course")?.dataset.course;
+    const flag = e.target.closest("[data-clash]");
+    if (flag) return toast(flag.dataset.clash, "warn");
     const rej = e.target.closest("[data-reject]");
     if (rej) return toggleReject(rej.dataset.reject.split(","));
     const chip = e.target.closest("[data-pick]");
@@ -2261,6 +2465,10 @@ function init() {
       const d = Number(day.dataset.day);
       days.has(d) ? days.delete(d) : days.add(d);
       return setFilter(courseKey, { days: [...days] });
+    }
+    if (e.target.closest("[data-act=togglef]")) {
+      openFilters.has(courseKey) ? openFilters.delete(courseKey) : openFilters.add(courseKey);
+      return renderCourses();
     }
     if (e.target.closest(".fbar")) {
       if (e.target.closest("[data-act=clearf]")) { checkpoint("ניקוי סינון"); delete state.filters[courseKey]; render(); }
@@ -2432,7 +2640,7 @@ function init() {
     const kind = e.target.closest("[data-print]")?.dataset.print;
     setPrintMenu(false);
     if (kind === "ics") openIcsDialog();
-    else if (kind && state.offline) printAs(kind);
+    else if (kind && state.offline) exportPdfInBrowser(kind);
     else if (kind) exportPdf(kind);
   });
   document.addEventListener("click", (e) => { if (!e.target.closest("#printMenu")) setPrintMenu(false); });
@@ -2518,10 +2726,6 @@ function applyModeUI() {
     : "עדיין לא פורסמו נתונים לגרסה הזו.";
   $("offlineAsk").hidden = !published;
   $("loadSnapshotBtn").hidden = !published || imported === published.exportedAt;
-  for (const [kind, text] of [["schedule", "הדפסה / שמירה כ-PDF · מערכת השעות"], ["catalog", "הדפסה / שמירה כ-PDF · קטלוג כל הקבוצות"]]) {
-    const b = document.querySelector(`[data-print=${kind}] b`);
-    if (b) b.textContent = text;
-  }
 }
 
 async function publishSnapshot() {
