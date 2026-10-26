@@ -1419,8 +1419,20 @@ function initSwapDrag() {
     if (!ev || e.button > 0 || e.target.closest("[data-unpick]") || swap) return;
     press = { key: ev.dataset.key, x: e.clientX, y: e.clientY, el: ev, mouse: e.pointerType === "mouse" };
     // touch: a long press marks the other times; a tap then picks one
-    if (!press.mouse) press.timer = setTimeout(() => { swallowClick = true; startSwap(press.key, false); press = null; }, 450);
+    if (!press.mouse) press.timer = setTimeout(() => {
+      swallowClick = true;
+      window.getSelection()?.removeAllRanges();
+      startSwap(press.key, false);
+      press = null;
+    }, 450);
   });
+  // iPad / iPhone: a long press would also start selecting text (spreading to the page around the calendar)
+  // and may pop up the system menu; neither should happen while a finger rests on the calendar
+  let holding = false;
+  cal.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") holding = true; });
+  ["pointerup", "pointercancel"].forEach((t) => window.addEventListener(t, () => { holding = false; }));
+  document.addEventListener("selectstart", (e) => { if (holding || swap) e.preventDefault(); });
+  cal.addEventListener("contextmenu", (e) => { if (e.target.closest(".event, .swap-target")) e.preventDefault(); });
   window.addEventListener("pointermove", (e) => {
     if (press && !swap) {
       const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y);

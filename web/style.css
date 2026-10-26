@@ -1687,3 +1687,7 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
 
 /* the fields inside the add-course dialog fill their columns */
 .add-dlg .ab-field input, .add-dlg .ab-field select { width: 100%; }
+
+/* touch screens: no text selection or system callout on the calendar (long press is for switching groups) */
+.cal-wrap, .cal-wrap * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.cal-wrap { -webkit-tap-highlight-color: transparent; }
