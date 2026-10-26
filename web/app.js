@@ -61,7 +61,7 @@ const state = {
 const PLAN_LETTERS = ["א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט", "י"];
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
-// BIU names the academic year by the year it ends in (תשפ"ז = 2027 starts Oct 2026)
+// BIU names the academic year by the year it ends in (Hebrew year 5787 = 2027, which starts in Oct 2026)
 function currentAcademicYear() {
   const now = new Date();
   return now.getMonth() >= 8 ? now.getFullYear() + 1 : now.getFullYear();
@@ -103,7 +103,7 @@ function termOfSelection(key) {
 function loadPlans() {
   let saved = store.get("biu.plans", null);
   if (!Array.isArray(saved) || !saved.length) {
-    // first run after plans were introduced: keep the existing selection as plan א'
+    // first run after plans were introduced: keep the existing selection as the first plan
     saved = [{ id: uid(), name: "מערכת א'", notes: "", selected: store.get("biu.selected", []) }];
   }
   const out = [];
@@ -166,7 +166,7 @@ function save() {
 const toMin = (t) => { const [h, m] = (t || "").split(":").map(Number); return h * 60 + (m || 0); };
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const range = (s) => (s.start ? `<bdi dir="ltr">${esc(s.start)}–${esc(s.end)}</bdi>` : "");
-// Hebrew year in gematria: 2027 -> 5787 -> תשפ"ז
+// Hebrew year in gematria letters: 2027 -> 5787 -> Tav-Shin-Pe-Zayin (with gershayim before the last letter)
 function yearLabel(y) {
   let n = (Number(y) + 3760) % 1000;
   if (!n) return String(y);
@@ -962,7 +962,7 @@ function finishRename(commit) {
 const DAY_LETTER = (d) => DAY_SHORT[d] || "";
 const fmtMin = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 const fmtHours = (h) => (Number.isInteger(h) ? String(h) : h.toFixed(1));
-// returns HTML: "06 (ד' 11:00–13:00)" with the time kept left-to-right
+// returns HTML like "06 (<day letter> 11:00–13:00)", with the time kept left-to-right
 const describe = (g) => {
   const t = timedSessions(g).map((s) => `${esc(s.dayLabel)}' ${range(s)}`).join(", ");
   return `${esc(g.group)}${t ? ` (${t})` : ""}`;

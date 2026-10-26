@@ -1,8 +1,8 @@
-"""שרת מקומי שמושך נתוני קורסים מ-courses.biu.ac.il ומגיש את ממשק המשתמש.
+"""Local server: pulls course data from courses.biu.ac.il and serves the web app.
 
-האתר של בר אילן מוגן ע"י Radware, ולכן החיפוש רץ בתוך חלון Chrome אמיתי
-(פרופיל קבוע בתיקייה .browser-profile). אם מופיע אימות (captcha) - פותרים
-אותו פעם אחת בחלון, והעוגיות נשמרות.
+The BIU site is protected by Radware bot detection, so searches run inside a real
+Chrome window (persistent profile in .browser-profile). If a captcha shows up, it is
+solved once in that window and the cookies are kept for later searches.
 """
 import asyncio
 import json
@@ -133,7 +133,7 @@ DAYS = {"א": 0, "ב": 1, "ג": 2, "ד": 3, "ה": 4, "ו": 5, "ש": 6}
 def semester_key(label):
     if "שנתי" in label:
         return "yearly"
-    # "סמסטר א'", "סמסטר ב'", "סמסטר ק'" (summer)
+    # BIU labels read "Semester A", "Semester B" and "Semester K" (summer), written in Hebrew letters
     rest = label.replace("סמסטר", "")
     if "קיץ" in rest or "ק" in rest:
         return "summer"
@@ -157,7 +157,7 @@ def normalize(code, year, rows):
         # several lecturers on one session come as extra lines, not one per session
         if len(r["teachers"]) != len(r["hours"]):
             r["teachers"] = [", ".join(dict.fromkeys(r["teachers"]))]
-        # a twice-weekly group lists its days on one line: "ב,ג"
+        # a twice-weekly group lists its days on one line, comma-separated (e.g. "Mon,Tue" in Hebrew letters)
         if len(r["days"]) < len(r["hours"]):
             r["days"] = [d.strip() for line in r["days"] for d in line.split(",")]
         for i, hours in enumerate(r["hours"]):
@@ -465,7 +465,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    print(f"המערכת רצה בכתובת http://localhost:{PORT}  (Ctrl+C לסגירה)")
+    print(f"Course planner running at http://localhost:{PORT}  (Ctrl+C to stop)")
     webbrowser.open(f"http://localhost:{PORT}")
     try:
         server.serve_forever()
