@@ -1355,7 +1355,7 @@ function swapTargetsHTML(day, at, len) {
     const who = [...new Set(gs.flatMap(teachersOf))];
     return timedSessions(gs[0]).filter((s) => s.day === day).map((s) => `<div class="swap-target ${clash ? "clash" : ""} ${swap.over === i ? "over" : ""}" data-swap="${i}"
         style="--c:${swap.course.color};top:calc(${at(toMin(s.start))} + 1px);height:${len(toMin(s.start), toMin(s.end))}"
-        title="${esc(`${swap.type} ${gs.map((g) => g.group).join(" / ")} · ${range(s)}${who.length ? `\n${who.join(", ")}` : ""}${clash ? "\nמתנגש עם שיעור אחר או אילוץ" : ""}`)}">
+        title="${esc(`${swap.type} ${gs.map((g) => g.group).join(" / ")} · ${s.start}–${s.end}${who.length ? `\n${who.join(", ")}` : ""}${clash ? "\nמתנגש עם שיעור אחר או אילוץ" : ""}`)}">
       <b>${esc(swap.type)} ${gs.map((g) => esc(g.group)).join("/")}</b>
       <span>${range(s)}</span>
       ${who.length ? `<span>${esc(who[0])}${who.length > 1 ? ` +${who.length - 1}` : ""}</span>` : ""}
@@ -2687,14 +2687,16 @@ function setupTooltips() {
     tip.hidden = true;
     target = null;
   };
+  // no tooltips while a mouse button is held (dragging a class, a constraint or a selection)
   document.addEventListener("pointerover", (e) => {
     if (e.pointerType !== "mouse") return;
-    const el = find(e.target);
+    const el = !e.buttons && find(e.target);
     if (el) show(el); else hide();
   });
   // after a scroll or click hid it, the next mouse move over the same element brings it back
   document.addEventListener("pointermove", (e) => {
     if (e.pointerType !== "mouse" || target) return;
+    if (e.buttons) return hide();
     const el = find(e.target);
     if (el) show(el);
   }, { passive: true });
