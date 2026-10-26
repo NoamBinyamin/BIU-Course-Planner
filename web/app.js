@@ -1385,10 +1385,12 @@ function comboMetrics(sessions, prefs) {
   const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const startsOf = (pred) => sessions.filter((s) => pred(s.opt)).map((s) => s.start);
   const lectures = startsOf((o) => typeRank(o.type) === 0);
-  // a tutorial that comes before a lecture on the same day (the order "lectures first" wants to avoid)
+  // a tutorial that comes earlier in the week than its own course's lecture (the order "lectures first" wants to avoid);
+  // lectures of other courses don't matter
   const isLecture = (s) => typeRank(s.opt.type) === 0, isTutorial = (s) => typeRank(s.opt.type) === 1;
+  const weekMin = (s) => Number(s.day) * 1440 + s.start;
   const tutorialsBefore = sessions.filter(isTutorial)
-    .filter((t) => sessions.some((l) => isLecture(l) && l.day === t.day && t.start < l.start)).length;
+    .filter((t) => sessions.some((l) => isLecture(l) && l.opt.course === t.opt.course && weekMin(t) < weekMin(l))).length;
   const morning = startsOf((o) => prefs.morningCourses.includes(o.course.key));
   return {
     days: [...byDay.keys()].sort(),
@@ -1418,7 +1420,7 @@ const activeCriteria = (prefs) => (prefs.criteria?.length ? prefs.criteria : Obj
 
 // lower is better, compared element by element:
 // [clashes (added by the search), missed preferred teachers, weighted score of the ticked criteria,
-//  how early the days end on average, the unticked criteria, hours spent on campus]
+//  "lectures first", how early the days end on average, the unticked criteria, hours spent on campus]
 // ending earlier only decides between timetables that are equal on what the user ticked, so it never
 // pushes a day outside the comfortable hours (those are part of the score when "comfort" is ticked)
 function rankKey(m, prefs, teacherMiss) {
@@ -1428,10 +1430,11 @@ function rankKey(m, prefs, teacherMiss) {
     if (ticked.includes(k)) score += c.w * c.val(m);
     else tie += c.w * c.val(m);
   }
-  // soft preferences only reorder timetables that are close on the ticked criteria
-  if (prefs.lecturesFirst) score += m.lectureLate * 0.25 + m.tutorialsBefore * 0.5;
   if (prefs.morningCourses.length) score += m.morningLate * 0.5;
-  return [teacherMiss, Math.round(score * 1000) / 1000, Math.round(m.endAvg), Math.round(tie * 1000) / 1000, m.span];
+  // "lectures first" only decides between timetables that are equal on the ticked criteria,
+  // so it can never pick a timetable with more gaps or later days
+  const order = prefs.lecturesFirst ? Math.round((m.tutorialsBefore + m.lectureLate * 0.5) * 1000) / 1000 : 0;
+  return [teacherMiss, Math.round(score * 1000) / 1000, order, Math.round(m.endAvg), Math.round(tie * 1000) / 1000, m.span];
 }
 
 // a result is dominated when another one is at least as good on every ticked criterion and better on one
