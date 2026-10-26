@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מערכת הקורסים שלי</title>
+<meta name="description" content="תכנון מערכת שעות מתוך קטלוג הקורסים של אוניברסיטת בר אילן">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23145a3c'/%3E%3Crect x='7' y='9' width='8' height='6' rx='1.5' fill='%23fff'/%3E%3Crect x='17' y='9' width='8' height='10' rx='1.5' fill='%23fff' opacity='.7'/%3E%3Crect x='7' y='17' width='8' height='6' rx='1.5' fill='%23fff' opacity='.7'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#courseList">דילוג לרשימת הקורסים</a>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32"><rect x="5" y="7" width="9" height="7" rx="2"/><rect x="18" y="7" width="9" height="12" rx="2" opacity=".6"/><rect x="5" y="18" width="9" height="7" rx="2" opacity=".6"/></svg>
+    </div>
+    <div>
+      <h1>מערכת הקורסים שלי</h1>
+      <p>מוסיפים קורסים, בוחרים קבוצות, ורואים את השבוע מתגבש.</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="offlineBanner" class="offline-banner" role="status" hidden>
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5a10 10 0 0 1 14 0M5.5 10.5a6.5 6.5 0 0 1 9 0M8.2 13.4a2.6 2.6 0 0 1 3.6 0M10 16.2v.1M3 3l14 14"/></svg>
+    <div class="ob-text">
+      <b>גרסת צפייה – בלי חיבור לאתר בר אילן</b>
+      <span id="offlineText"></span>
+    </div>
+    <button type="button" class="btn ghost" id="loadSnapshotBtn" hidden>טעינת הנתונים שפורסמו</button>
+  </div>
+
+  <form id="addForm" class="addbar" autocomplete="off" novalidate>
+    <div class="ab-field ab-code">
+      <label for="codeInput">מספר קורס</label>
+      <input id="codeInput" inputmode="numeric" placeholder="לדוגמה 89110" aria-describedby="lookup">
+    </div>
+    <div class="ab-field">
+      <label for="yearInput">שנה</label>
+      <select id="yearInput"></select>
+    </div>
+    <div class="ab-field">
+      <label for="semesterInput">סמסטר</label>
+      <select id="semesterInput">
+        <option value="A">סמסטר א'</option>
+        <option value="B">סמסטר ב'</option>
+        <option value="summer">סמסטר קיץ</option>
+      </select>
+    </div>
+    <button type="submit" id="addBtn" class="btn primary">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
+      הוספה
+    </button>
+    <div id="lookup" class="lookup" aria-live="polite"></div>
+  </form>
+
+  <nav class="plansbar" aria-label="שנה, סמסטר וחלופות">
+    <div class="termnav">
+      <label class="term-year">
+        <span class="sr-only">שנת לימודים</span>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
+        <select id="termYear"></select>
+      </label>
+      <span class="crumb" aria-hidden="true">‹</span>
+      <div id="termSem" class="seg" role="tablist" aria-label="סמסטר"></div>
+      <span class="crumb" aria-hidden="true">‹</span>
+    </div>
+    <div class="plan-tabs" id="planTabs" role="tablist" aria-label="חלופות"></div>
+    <div class="newplan" id="newPlan">
+      <button type="button" class="btn text" id="newPlanBtn" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>חלופה חדשה
+      </button>
+      <div class="menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-new="copy"><b>שכפול המערכת הנוכחית</b><span>מתחילים מאותן בחירות ומשנים</span></button>
+        <button type="button" role="menuitem" data-new="empty"><b>מערכת ריקה</b><span>בונים מאפס</span></button>
+      </div>
+    </div>
+    <div class="bar-actions">
+      <button type="button" class="btn compare-btn" id="generateBtn">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><path d="M14 11v6M11 14h6"/></svg>
+        <span>בנייה אוטומטית</span>
+      </button>
+      <button type="button" class="btn compare-btn" id="compareBtn">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7h11l-3-3M16 13H5l3 3"/></svg>
+        <span>השוואת חלופות</span>
+      </button>
+    </div>
+  </nav>
+
+  <section id="generator" class="compare generator" hidden aria-label="בנייה אוטומטית">
+    <div class="cmp-head">
+      <div>
+        <h2 id="genTitle">בנייה אוטומטית</h2>
+        <p class="muted">המערכת עוברת על כל הצירופים של הרצאה אחת ותרגול אחד לכל קורס, בלי התנגשויות, ומדרגת אותם לפי מה שחשוב לך.</p>
+      </div>
+    </div>
+    <div class="gen-layout">
+      <form id="genForm" class="gen-prefs" autocomplete="off">
+        <button type="button" class="gen-prefs-toggle" id="genPrefsToggle" aria-expanded="false" aria-controls="genForm">
+          <span><b>ההעדפות שלי</b><small id="genPrefsSummary"></small></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
+        </button>
+        <fieldset>
+          <legend>מה הכי חשוב לי <span class="info" tabindex="0" data-tip="מסמנים שיקול אחד או יותר, והתוצאות מדורגות מהטובה ביותר כלפי מטה. כשמסומנים כמה – הם משוקללים יחד: יום נוסף בקמפוס שווה בערך 3 שעות חלון, ושעה מחוץ לשעות הנוחות שבחרת שווה שעת חלון אחת. בין מערכות ששקולות בכל זה – עדיפות למערכת שהימים בה מסתיימים מוקדם יותר.">i</span></legend>
+          <label class="radio"><input type="checkbox" name="criteria" value="days"><span><b>כמה שפחות ימים בקמפוס</b><small>לרכז את הלימודים בפחות ימים</small></span></label>
+          <label class="radio"><input type="checkbox" name="criteria" value="gaps"><span><b>כמה שפחות חלונות</b><small>בלי לחכות שעות בין שיעורים</small></span></label>
+          <label class="radio"><input type="checkbox" name="criteria" value="comfort"><span><b>שעות נוחות</b><small id="comfortHint">כמה שפחות לפני 10:00 ואחרי 18:00</small></span></label>
+          <div class="comfort-hours" id="comfortHours">
+            <span class="ch-title">השעות הנוחות שלי</span>
+            <span>בין</span>
+            <label><span class="sr-only">מהשעה</span><select id="genComfortFrom"></select></label>
+            <span>ל-</span>
+            <label><span class="sr-only">עד השעה</span><select id="genComfortTo"></select></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>ימים שחייבים להישאר פנויים <span class="info" tabindex="0" data-tip="המערכת לא תציע אף קבוצה שנפגשת בימים שסימנת. אם אין ברירה אחרת – יופיע הסבר איזה קורס נחסם.">i</span></legend>
+          <div class="fdays gen-days" id="genFreeDays"></div>
+        </fieldset>
+        <fieldset class="gen-hours">
+          <legend>שעות <span class="info" tabindex="0" data-tip="קבוצות שמתחילות לפני השעה הראשונה או מסתיימות אחרי השעה השנייה לא ייכללו.">i</span></legend>
+          <label>לא לפני<select id="genNotBefore"></select></label>
+          <label>לא אחרי<select id="genNotAfter"></select></label>
+        </fieldset>
+        <fieldset>
+          <legend>העדפות</legend>
+          <div class="opt-row">
+            <label class="switch"><input type="checkbox" id="genLecturesFirst"><span class="track"></span>הרצאות מוקדם יותר מתרגולים</label>
+            <span class="info" tabindex="0" data-tip="מעדיף צירופים שבהם ההרצאות מוקדמות ביום, ושביום שיש בו גם הרצאה וגם תרגול – ההרצאה באה קודם. ההעדפה לא דוחה תרגולים לשעות מאוחרות.">i</span>
+          </div>
+          <div class="pref-block">
+            <div class="opt-row">
+              <span class="pref-title">קורסים שחשוב לי שיהיו בבוקר</span>
+              <span class="info" tabindex="0" data-tip="בוחרים קורסים חשובים במיוחד, והמערכת תעדיף שהמפגשים שלהם יהיו כמה שיותר מוקדם ביום, כשהריכוז גבוה.">i</span>
+            </div>
+            <div class="chip-pick" id="genMorningCourses"></div>
+          </div>
+          <div class="pref-block">
+            <div class="opt-row">
+              <span class="pref-title">מרצים ומתרגלים מועדפים</span>
+              <span class="info" tabindex="0" data-tip="בוחרים מרצים או מתרגלים שהיית רוצה ללמוד אצלם. המערכת תעדיף צירופים שבהם הם מלמדים אותך – אבל לא תעדיף אותם על פני מערכת בלי התנגשויות.">i</span>
+            </div>
+            <select id="genTeacherAdd" aria-label="הוספת מרצה מועדף"></select>
+            <div class="chip-list" id="genTeachers"></div>
+          </div>
+          <div class="pref-block">
+            <div class="opt-row">
+              <span class="pref-title">מרצים ומתרגלים שלא מתאימים לי</span>
+              <span class="info" tabindex="0" data-tip="הקבוצות שלהם (הרצאה או תרגול) לא ייכללו בכלל בחלופות. קבוצה שמלמדים בה שניים – מספיק שאחד מהם ברשימה. אם לא נשארת בקורס אף קבוצה אחרת, יופיע הסבר.">i</span>
+            </div>
+            <select id="genAvoidAdd" aria-label="הוספת מרצה להתעלמות"></select>
+            <div class="chip-list avoid" id="genAvoid"></div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>אילו קבוצות לשקול</legend>
+          <div class="opt-row">
+            <label class="switch"><input type="checkbox" id="genSkipNoTeacher"><span class="track"></span>להתעלם מקבוצות בלי מרצה רשום</label>
+            <span class="info" tabindex="0" data-tip="קבוצות שבאתר של בר אילן עדיין לא רשום להן מרצה או מתרגל (מופיעות ברשימה כ'טרם נקבע') לא ייכללו באפשרויות.">i</span>
+          </div>
+          <div class="opt-row">
+            <label class="switch"><input type="checkbox" id="genUseBlocks"><span class="track"></span>הזמנים החסומים שלי</label>
+            <span class="info" tabindex="0" data-tip="שעות שסימנת בלוח כתפוסות (עבודה, אימון…). כשהאפשרות פעילה, המערכת לא תציע קבוצות שמתנגשות בהן.">i</span>
+          </div>
+          <div class="opt-row">
+            <label class="switch"><input type="checkbox" id="genUseFilters"><span class="track"></span>הסינונים שהגדרתי בקורסים</label>
+            <span class="info" tabindex="0" id="genFiltersTip" data-tip="">i</span>
+          </div>
+          <div class="opt-row">
+            <label class="switch"><input type="checkbox" id="genKeep"><span class="track"></span>הבחירות שכבר עשיתי בחלופה הנוכחית</label>
+            <span class="info" tabindex="0" id="genKeepTip" data-tip="">i</span>
+          </div>
+        </fieldset>
+        <p class="gen-note muted">קבוצות שפסלת לא נכללות אף פעם. קבוצות שנפגשות באותן שעות נחשבות לאפשרות אחת.</p>
+      </form>
+      <div class="gen-results" id="genResults" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section id="compare" class="compare" hidden aria-label="השוואת חלופות">
+    <div class="cmp-head">
+      <div>
+        <h2 id="cmpTitle">השוואת חלופות</h2>
+        <p class="muted">כל החלופות זו לצד זו. ההבדלים מחושבים מול חלופת הבסיס.</p>
+      </div>
+      <label class="cmp-base">בסיס להשוואה<select id="cmpBase"></select></label>
+    </div>
+    <div id="cmpCards" class="cmp-cards"></div>
+    <div class="cmp-diff" id="cmpDiffWrap">
+      <div class="cmp-diff-head">
+        <h3>מה שונה בין החלופות</h3>
+        <label class="switch"><input type="checkbox" id="cmpShowSame"><span class="track"></span>הצגת רכיבים זהים</label>
+      </div>
+      <div class="table-scroll"><table id="cmpTable" class="cmp-table"></table></div>
+    </div>
+  </section>
+
+  <div class="layout" id="buildView">
+    <section class="courses" aria-label="הקורסים שלי">
+      <div class="toolbar" id="toolbar">
+        <div class="tb-views">
+          <div id="groupByTabs" class="seg" role="tablist" aria-label="חלוקת הרשימה">
+            <button type="button" role="tab" data-groupby="course">לפי קורס</button>
+            <button type="button" role="tab" data-groupby="type">הרצאות ותרגולים</button>
+          </div>
+        </div>
+        <div class="tb-tools">
+          <label class="switch" title="קבוצות של אותו קורס שנפגשות בדיוק באותן שעות יוצגו כשורה אחת"><input type="checkbox" id="mergeSlots"><span class="track"></span>איחוד קבוצות באותן שעות</label>
+          <label class="switch"><input type="checkbox" id="onlySelected"><span class="track"></span>רק נבחרות</label>
+          <label class="switch"><input type="checkbox" id="hideConflicts"><span class="track"></span>הסתרת מתנגשות</label>
+          <button type="button" id="toggleAll" class="btn text"></button>
+        </div>
+      </div>
+      <div id="courseList" class="course-list" tabindex="-1"></div>
+    </section>
+
+    <aside class="planner" id="planner" aria-label="מערכת השעות">
+      <div class="planner-head">
+        <div class="planner-title">
+          <h2 id="plannerTitle">מערכת השעות</h2>
+          <input id="planNameInput" class="plan-name-input" maxlength="40" aria-label="שם החלופה" hidden>
+          <p id="plannerStats" class="muted"></p>
+          <p id="plannerWarn" class="planner-warn" role="alert" hidden></p>
+        </div>
+        <div class="planner-actions">
+          <button type="button" class="btn icon-btn" id="addBlockBtn" title="חסימת זמן (אפשר גם לגרור על הלוח)" aria-label="חסימת זמן">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2M5 15L15 5"/></svg>
+          </button>
+          <button type="button" class="btn icon-btn" id="renamePlanBtn" title="שינוי שם החלופה" aria-label="שינוי שם">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 16l1-4 8.5-8.5 3 3L8 15zM12 5l3 3"/></svg>
+          </button>
+          <div class="print-menu" id="printMenu">
+            <button type="button" class="btn icon-btn" id="printBtn" title="ייצוא ל-PDF" aria-label="ייצוא ל-PDF" aria-haspopup="menu" aria-expanded="false">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9M6.5 8.5L10 12l3.5-3.5M4 14v2.5h12V14"/></svg>
+            </button>
+            <div class="menu" role="menu" hidden>
+              <button type="button" role="menuitem" data-print="schedule"><b>ייצוא PDF · מערכת השעות</b><span>הלוח השבועי של החלופה, פירוט ומועדי בחינות</span></button>
+              <button type="button" role="menuitem" data-print="catalog"><b>ייצוא PDF · קטלוג כל הקבוצות</b><span>כל הקבוצות בכל הקורסים, עם סימון של מה שנבחר</span></button>
+              <button type="button" role="menuitem" data-print="ics"><b>ייצוא ליומן · Google / Outlook</b><span>קובץ ‎.ics עם כל השיעורים כאירועים שבועיים</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="planner-opts">
+        <label class="switch"><input type="checkbox" id="hideEmptyDays"><span class="track"></span>הסתרת ימים ריקים</label>
+      </div>
+      <div id="dayStrip" class="day-strip" role="tablist" aria-label="יום בשבוע" hidden></div>
+      <div class="cal-wrap" id="calWrap">
+        <div id="calendar" class="calendar"></div>
+        <div id="calEmpty" class="cal-empty" hidden>
+          <strong>השבוע עדיין ריק</strong>
+          <span>סמנו קבוצות ברשימה כדי לשבץ אותן כאן. מעבר עם העכבר על קבוצה מציג אותה בתצוגה מקדימה.</span>
+        </div>
+      </div>
+      <p class="cal-hint muted"><span class="hint-desktop">טיפ: גוררים על שטח ריק בלוח כדי לחסום זמן (עבודה, אימון…).</span><span class="hint-mobile">מחליקים ימינה ושמאלה כדי לעבור בין הימים. לחסימת זמן – כפתור השעון למעלה.</span></p>
+      <div id="unscheduled" class="unscheduled"></div>
+      <div class="notes">
+        <label for="planNotes">הערות לחלופה הזו</label>
+        <textarea id="planNotes" rows="3" placeholder="למשל: יום ד' נשאר פנוי לעבודה, אבל יש חלון של 3 שעות ביום ג'…"></textarea>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap site-footer-inner">
+    <span>נבנה על ידי <b>נועם בנימין</b></span>
+    <button type="button" class="btn text" id="publishBtn" title="שומר את הקורסים, החלופות וההגדרות לקובץ שהגרסה שבגיטהאב טוענת">
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3M6.5 6.5L10 3l3.5 3.5M4 12v4.5h12V12"/></svg>
+      פרסום לגרסה המקוונת
+    </button>
+  </div>
+</footer>
+
+<div id="printSheet" class="print-sheet" aria-hidden="true"></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="blockDialog" class="dlg" aria-labelledby="blockTitle">
+  <form id="blockForm" method="dialog">
+    <h3 id="blockTitle">זמן חסום</h3>
+    <p class="muted">שעות שתפוסות ממילא. קבוצות שמתנגשות בהן יסומנו, והבנייה האוטומטית תימנע מהן.</p>
+    <label class="dlg-field">תיאור<input id="blkLabel" maxlength="40" placeholder="עבודה, אימון, הסעה…"></label>
+    <div class="dlg-row">
+      <label class="dlg-field">יום<select id="blkDay"></select></label>
+      <label class="dlg-field">משעה<input id="blkStart" type="time" step="900" required></label>
+      <label class="dlg-field">עד<input id="blkEnd" type="time" step="900" required></label>
+    </div>
+    <p id="blkError" class="dlg-error" hidden></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn text danger" id="blkDelete">מחיקה</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" data-close>ביטול</button>
+      <button type="submit" class="btn primary">שמירה</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="icsDialog" class="dlg" aria-labelledby="icsTitle">
+  <form id="icsForm" method="dialog">
+    <h3 id="icsTitle">ייצוא ליומן</h3>
+    <p class="muted" id="icsIntro"></p>
+    <div class="dlg-row">
+      <label class="dlg-field">תחילת הסמסטר<input id="icsStart" type="date" required></label>
+      <label class="dlg-field">סוף הסמסטר<input id="icsEnd" type="date" required></label>
+    </div>
+    <p class="dlg-hint">התאריכים משוערים – כדאי לוודא מול לוח השנה האקדמי של בר אילן. חגים וחופשות לא מוחרגים אוטומטית.</p>
+    <label class="switch"><input type="checkbox" id="icsExams" checked><span class="track"></span>מועדי בחינות</label>
+    <label class="switch"><input type="checkbox" id="icsBlocks"><span class="track"></span>הזמנים החסומים שלי</label>
+    <p id="icsError" class="dlg-error" hidden></p>
+    <details class="howto">
+      <summary>איך מכניסים את הקובץ ליומן?</summary>
+      <ul>
+        <li><b>Google Calendar:</b> במחשב, הגדרות ← ייבוא וייצוא ← בוחרים את הקובץ. מומלץ ליצור קודם יומן נפרד ("לימודים") כדי שיהיה קל להסיר.</li>
+        <li><b>Outlook:</b> פותחים את הקובץ בלחיצה כפולה, או קובץ ← פתיחה וייצוא ← ייבוא.</li>
+        <li><b>iPhone / Android:</b> שולחים לעצמכם את הקובץ במייל ופותחים אותו מהטלפון.</li>
+      </ul>
+    </details>
+    <div class="dlg-actions">
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" data-close>ביטול</button>
+      <button type="submit" class="btn primary">הורדת הקובץ</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
