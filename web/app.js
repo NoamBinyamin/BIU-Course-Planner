@@ -11,6 +11,7 @@ const ICONS = {
   refresh: '<svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4"/></svg>',
   trash: '<svg viewBox="0 0 20 20"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/></svg>',
   x: '<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  star: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.8l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 8.1l5-.7z"/></svg>',
   warn: '<svg viewBox="0 0 16 16"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.8v.1"/></svg>',
   ban: '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M4.2 11.8l7.6-7.6"/></svg>',
   undo: '<svg viewBox="0 0 16 16"><path d="M4 6.5h5.5a3 3 0 0 1 0 6H6M6.5 4L4 6.5 6.5 9"/></svg>',
@@ -917,9 +918,9 @@ function renderPlans() {
   $("planTabs").innerHTML = termPlans().map((p) => {
     const n = selectedGroups(state.view, p.selected).length;
     const on = !state.comparing && !state.generating && p.id === active.id;
-    return `<div class="plan-tab-wrap ${on ? "on" : ""} ${deletable ? "deletable" : ""}">
+    return `<div class="plan-tab-wrap ${on ? "on" : ""} ${deletable ? "deletable" : ""} ${p.chosen ? "chosen" : ""}">
       <button type="button" role="tab" class="plan-tab" data-plan="${p.id}" aria-selected="${on}"
-        title="${esc(p.notes || p.name)}">${esc(p.name)}<span class="count">${n}</span>${p.notes ? '<i class="has-notes" aria-label="יש הערות"></i>' : ""}</button>
+        title="${esc(p.notes || p.name)}${p.chosen ? " · החלופה הנבחרת" : ""}">${p.chosen ? `<i class="chosen-star" aria-label="חלופה נבחרת">${ICONS.star}</i>` : ""}${esc(p.name)}<span class="count">${n}</span>${p.notes ? '<i class="has-notes" aria-label="יש הערות"></i>' : ""}</button>
       ${deletable ? `<button type="button" class="plan-del" data-delplan="${p.id}" title="מחיקת החלופה (אפשר לבטל)" aria-label="מחיקת ${esc(p.name)}">${ICONS.x}</button>` : ""}
     </div>`;
   }).join("");
@@ -935,7 +936,40 @@ function renderPlans() {
   $("generateBtn").classList.toggle("on", state.generating);
   $("generateBtn").querySelector("span").textContent = state.generating ? "חזרה לבנייה" : "בנייה אוטומטית";
   if (document.activeElement !== $("planNotes")) $("planNotes").value = active.notes || "";
+  const chosenLabel = active.chosen ? "ביטול הסימון כחלופה נבחרת" : "סימון כחלופה נבחרת";
+  $("chosenBtn").setAttribute("aria-pressed", String(!!active.chosen));
+  $("chosenBtn").title = chosenLabel;
+  $("chosenBtn").setAttribute("aria-label", chosenLabel);
 }
+
+// one plan per term can be marked as the chosen one; marking another moves the mark
+function toggleChosen(id) {
+  const plan = termPlans().find((p) => p.id === id);
+  if (!plan) return;
+  const on = !plan.chosen;
+  checkpoint(on ? "סימון חלופה נבחרת" : "ביטול חלופה נבחרת");
+  termPlans().forEach((p) => { delete p.chosen; });
+  if (on) plan.chosen = true;
+  render();
+  toast(on ? `"${plan.name}" סומנה כחלופה הנבחרת` : `הסימון הוסר מ"${plan.name}"`);
+}
+
+/* right-click (or long press on touch) on a plan tab */
+let planMenuFor = null;
+function openPlanMenu(id, x, y, fromKey = false) {
+  const plan = termPlans().find((p) => p.id === id);
+  if (!plan) return;
+  planMenuFor = id;
+  const menu = $("planMenu");
+  $("planMenuChoose").textContent = plan.chosen ? "ביטול הסימון כחלופה נבחרת" : "סימון כחלופה נבחרת";
+  menu.querySelector('[data-pact="delete"]').disabled = termPlans().length < 2;
+  menu.hidden = false;
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(x - w, innerWidth - w - 8))}px`;
+  menu.style.top = `${Math.max(8, y + h + 8 > innerHeight ? y - h - 4 : y + 4)}px`;
+  if (fromKey) menu.querySelector("button").focus({ preventScroll: true });
+}
+function closePlanMenu() { $("planMenu").hidden = true; planMenuFor = null; }
 
 function createPlan(kind) {
   checkpoint("יצירת חלופה");
@@ -1105,10 +1139,10 @@ function deltaHTML(cur, base, { better = null, unit = "", fmt = (v) => fmtHours(
 function renderCompare() {
   const sem = state.view;
   const plans = termPlans();
-  if (!plans.some((p) => p.id === state.cmpBase)) state.cmpBase = plans[0].id;
+  if (!plans.some((p) => p.id === state.cmpBase)) state.cmpBase = (plans.find((p) => p.chosen) || plans[0]).id;
   const base = plans.find((p) => p.id === state.cmpBase);
   $("cmpTitle").textContent = `השוואת חלופות · ${termLabel(sem)}`;
-  $("cmpBase").innerHTML = plans.map((p) => `<option value="${p.id}" ${p.id === base.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+  $("cmpBase").innerHTML = plans.map((p) => `<option value="${p.id}" ${p.id === base.id ? "selected" : ""}>${p.chosen ? "★ " : ""}${esc(p.name)}</option>`).join("");
   $("cmpShowSame").checked = state.cmpShowSame;
 
   const metrics = new Map(plans.map((p) => [p.id, planMetrics(p, sem)]));
@@ -1127,9 +1161,10 @@ function renderCompare() {
     const isBase = p.id === base.id;
     const changes = isBase ? [] : planChanges(base, p, sem);
     const d = (cur, b, opts) => (isBase ? "" : deltaHTML(cur, b, opts));
-    return `<article class="cmp-card ${isBase ? "is-base" : ""} ${p.id === activePlan().id ? "is-active" : ""}">
+    return `<article class="cmp-card ${isBase ? "is-base" : ""} ${p.id === activePlan().id ? "is-active" : ""} ${p.chosen ? "is-chosen" : ""}">
       <header>
         <h3>${esc(p.name)}</h3>
+        ${p.chosen ? `<span class="badge chosen">${ICONS.star}נבחרת</span>` : ""}
         ${isBase ? '<span class="badge">בסיס</span>' : ""}
         <button type="button" class="btn text" data-open="${p.id}">פתיחה לעריכה</button>
       </header>
@@ -1175,7 +1210,7 @@ function renderCompare() {
     </tr>`;
   }
   $("cmpTable").innerHTML = comps.length ? `
-    <thead><tr><th></th>${plans.map((p) => `<th class="${p.id === base.id ? "base" : ""}">${esc(p.name)}</th>`).join("")}</tr></thead>
+    <thead><tr><th></th>${plans.map((p) => `<th class="${p.id === base.id ? "base" : ""}">${p.chosen ? "★ " : ""}${esc(p.name)}</th>`).join("")}</tr></thead>
     <tbody>${rows || `<tr><td colspan="${plans.length + 1}" class="all-same">כל החלופות זהות${plans.length < 2 ? "" : " – אין הבדלים לתצוגה"}.</td></tr>`}</tbody>
     ${hiddenSame && rows ? `<tfoot><tr><td colspan="${plans.length + 1}">${hiddenSame} רכיבים זהים בכל החלופות הוסתרו</td></tr></tfoot>` : ""}`
     : `<tbody><tr><td class="all-same">עדיין אין קורסים בסמסטר הזה.</td></tr></tbody>`;
@@ -2514,6 +2549,55 @@ function init() {
   $("planTabs").addEventListener("dblclick", (e) => {
     if (e.target.closest("[data-plan]")) startRename();
   });
+  $("planTabs").addEventListener("contextmenu", (e) => {
+    const tab = e.target.closest("[data-plan]");
+    if (!tab) return;
+    e.preventDefault();
+    // the keyboard menu key reports no pointer position: open under the tab
+    const r = tab.getBoundingClientRect();
+    const fromKey = !e.clientX && !e.clientY;
+    openPlanMenu(tab.dataset.plan, fromKey ? r.right : e.clientX, fromKey ? r.bottom : e.clientY, fromKey);
+  });
+  // touch screens have no right click: a long press opens the same menu
+  let press = null;
+  const cancelPress = () => { if (press) clearTimeout(press.timer); press = null; };
+  $("planTabs").addEventListener("pointerdown", (e) => {
+    cancelPress();
+    const tab = e.target.closest("[data-plan]");
+    if (!tab || e.pointerType === "mouse") return;
+    press = { x: e.clientX, y: e.clientY, timer: setTimeout(() => {
+      press.fired = true;
+      openPlanMenu(tab.dataset.plan, press.x, press.y);
+    }, 500) };
+  });
+  $("planTabs").addEventListener("pointermove", (e) => {
+    if (press && !press.fired && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+  });
+  $("planTabs").addEventListener("pointercancel", cancelPress);
+  $("planScroll").addEventListener("scroll", cancelPress, { passive: true });
+  // the click that ends a long press shouldn't also switch plans
+  $("planTabs").addEventListener("click", (e) => {
+    if (press?.fired) { e.stopImmediatePropagation(); e.preventDefault(); }
+    cancelPress();
+  }, true);
+  $("planTabs").addEventListener("pointerup", () => { if (press && !press.fired) cancelPress(); });
+  $("planMenu").addEventListener("click", (e) => {
+    const act = e.target.closest("[data-pact]")?.dataset.pact;
+    const id = planMenuFor;
+    closePlanMenu();
+    if (!act || !id) return;
+    if (act === "choose") toggleChosen(id);
+    else if (act === "delete") deletePlan(id);
+    else {
+      if (id !== activePlan().id || state.comparing || state.generating) switchPlan(id);
+      if (act === "rename") startRename();
+      else createPlan("copy");
+    }
+  });
+  document.addEventListener("pointerdown", (e) => { if (!$("planMenu").hidden && !e.target.closest("#planMenu")) closePlanMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("planMenu").hidden) closePlanMenu(); });
+  window.addEventListener("resize", () => { if (!$("planMenu").hidden) closePlanMenu(); });
+  $("chosenBtn").addEventListener("click", () => toggleChosen(activePlan().id));
   const menu = $("newPlan").querySelector(".menu");
   const setMenu = (open) => { menu.hidden = !open; $("newPlanBtn").setAttribute("aria-expanded", String(open)); };
   $("newPlanBtn").addEventListener("click", (e) => { e.stopPropagation(); setMenu(menu.hidden); });
