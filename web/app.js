@@ -668,7 +668,16 @@ function skeletonHTML() {
   </div>`;
 }
 
-function renderCourses() {
+// Safari (iPad / iPhone) resets the page's scroll position when a large block's content is replaced,
+// even if the new content is just as tall; put it back in the same frame so the page doesn't jump
+function keepScroll(fn) {
+  const y = window.scrollY;
+  fn();
+  if (Math.abs(window.scrollY - y) > 1) window.scrollTo({ top: y, behavior: "instant" });
+}
+
+function renderCourses() { keepScroll(renderCoursesNow); }
+function renderCoursesNow() {
   const list = $("courseList");
   const focusedField = document.activeElement?.dataset?.f;
   const focusedKey = document.activeElement?.dataset?.key;
@@ -2507,7 +2516,8 @@ async function exportPdf(kind) {
   }
 }
 
-function render() {
+function render() { keepScroll(renderNow); }
+function renderNow() {
   renderToolbar();
   const mode = state.generating ? "generate" : state.comparing ? "compare" : "build";
   $("compare").hidden = mode !== "compare";
@@ -3046,6 +3056,7 @@ function openColorMenu(key, anchor) {
       title="${other ? `בשימוש גם ב${esc(other)}` : c}" aria-label="${c}${other ? " (בשימוש)" : ""}"></button>`;
   }).join("");
   $("colorCustom").value = course.color;
+  $("colorCustom").style.backgroundColor = course.color;
   menu.hidden = false;
   const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
   menu.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
@@ -3087,6 +3098,7 @@ function init() {
   let colorFrame = 0;
   $("colorCustom").addEventListener("input", (e) => {
     cancelAnimationFrame(colorFrame);
+    e.target.style.backgroundColor = e.target.value;
     colorFrame = requestAnimationFrame(() => setCourseColor(e.target.value, false));
   });
   $("colorCustom").addEventListener("change", (e) => setCourseColor(e.target.value, true));
