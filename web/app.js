@@ -1156,6 +1156,7 @@ function deltaHTML(cur, base, { better = null, unit = "", fmt = (v) => fmtHours(
 }
 
 function renderCompare() {
+  queueMicrotask(() => document.querySelectorAll("#cmpCards [data-notes]").forEach((t) => { t.readOnly = viewLocked; }));
   const sem = state.view;
   const plans = termPlans();
   if (!plans.some((p) => p.id === state.cmpBase)) state.cmpBase = (plans.find((p) => p.chosen) || plans[0]).id;
@@ -1382,6 +1383,7 @@ function swapTargetsHTML(day, at, len) {
 }
 
 function startSwap(key, drag) {
+  if (viewLocked) { lockedNotice(); return false; }
   const opts = swapOptions(key);
   if (!opts) return false;
   if (!opts.alts.length) {
@@ -3088,8 +3090,72 @@ function setTermFolded(folded) {
   $("termFold").setAttribute("aria-expanded", String(!folded));
 }
 
+/* ---------- phones: view mode by default, so a stray tap can't change the timetable ---------- */
+
+// a phone held either way: narrow, or a touch screen that is very short (landscape)
+const phoneMQ = window.matchMedia("(max-width: 640px), (pointer: coarse) and (max-height: 520px)");
+const LOCK_IDLE = 3 * 60 * 1000; // editing locks again after 3 idle minutes
+let viewLocked = phoneMQ.matches, lockTimer = 0;
+
+// everything that changes the timetable; looking around (days, plans, filters, folding, details) stays open
+const EDIT_TARGETS = [
+  ".grp", "[data-unpick]", "[data-reject]", "[data-act=remove]", "[data-act=refresh]", "[data-color-course]",
+  "[data-delplan]", "#newPlanBtn", "[data-new]", "#renamePlanBtn", "#chosenBtn", "#addBlockBtn", "[data-busy]",
+  "[data-unbusy]", ".gen-save", "[data-pact]", "#addCourseBtn", "[data-open-add]", "[data-try]",
+].join(", ");
+
+function setViewLocked(locked) {
+  viewLocked = locked && phoneMQ.matches;
+  document.body.classList.toggle("view-locked", viewLocked);
+  const btn = $("lockBtn");
+  btn.setAttribute("aria-pressed", String(!viewLocked));
+  btn.querySelector("span").textContent = viewLocked ? "צפייה" : "עריכה";
+  btn.setAttribute("aria-label", viewLocked ? "מצב צפייה – נגיעה כדי לערוך" : "מצב עריכה – נגיעה כדי לנעול");
+  $("planNotes").readOnly = viewLocked;
+  document.querySelectorAll("#cmpCards [data-notes]").forEach((t) => { t.readOnly = viewLocked; });
+  clearTimeout(lockTimer);
+  if (!viewLocked && phoneMQ.matches) lockTimer = setTimeout(() => setViewLocked(true), LOCK_IDLE);
+}
+
+// a blocked tap explains itself and offers to unlock
+function lockedNotice() {
+  const btn = $("lockBtn");
+  btn.classList.remove("nudge");
+  void btn.offsetWidth;
+  btn.classList.add("nudge");
+  toast("מצב צפייה – כדי לשנות את המערכת פותחים לעריכה", "", { label: "פתיחה לעריכה", run: () => setViewLocked(false) });
+}
+
+function setupViewLock() {
+  setViewLocked(viewLocked);
+  $("lockBtn").addEventListener("click", () => {
+    setViewLocked(!viewLocked);
+    toast(viewLocked ? "המערכת נעולה לצפייה" : "אפשר לערוך – הנעילה תחזור אחרי 3 דקות בלי שימוש");
+  });
+  // stop edits before any other handler sees them
+  const guard = (e) => {
+    if (!viewLocked) return;
+    const t = e.target.closest?.(EDIT_TARGETS);
+    if (!t || e.target.closest(".flag, .more, #lockBtn")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.type === "click") lockedNotice();
+  };
+  document.addEventListener("click", guard, true);
+  document.addEventListener("dblclick", guard, true);
+  // while editing, any activity keeps it open; leaving the app locks it again
+  ["pointerdown", "keydown"].forEach((t) => document.addEventListener(t, () => {
+    if (viewLocked || !phoneMQ.matches) return;
+    clearTimeout(lockTimer);
+    lockTimer = setTimeout(() => setViewLocked(true), LOCK_IDLE);
+  }, true));
+  document.addEventListener("visibilitychange", () => { if (document.hidden && phoneMQ.matches) setViewLocked(true); });
+  phoneMQ.addEventListener("change", () => setViewLocked(phoneMQ.matches));
+}
+
 function init() {
   setupTooltips();
+  setupViewLock();
   setTermFolded(store.get("ui.termFolded", false));
   $("termFold").addEventListener("click", () => {
     const folded = !$("termRow").classList.contains("folded");

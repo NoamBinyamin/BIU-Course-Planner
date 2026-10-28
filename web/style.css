@@ -1724,3 +1724,26 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
   .pb-term:not(.folded) .pb-fold svg { transform: rotate(180deg); }
   .pb-term.folded .termnav { display: none; }
 }
+
+/* ---------- phones: view / edit switch ---------- */
+.lock-btn { display: none; }
+@media (max-width: 640px), (pointer: coarse) and (max-height: 520px) {
+  .lock-btn {
+    display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px; border-radius: 11px;
+    font-size: 14px; font-weight: 700; background: var(--surface-2); color: var(--ink-2);
+  }
+  .lock-btn svg { width: 17px; height: 17px; }
+  .lock-btn .i-open { display: none; }
+  .lock-btn[aria-pressed="true"] { background: color-mix(in srgb, #d9a514 18%, var(--surface)); color: #8a6400; box-shadow: inset 0 0 0 1.5px #d9a514; }
+  .lock-btn[aria-pressed="true"] .i-open { display: block; }
+  .lock-btn[aria-pressed="true"] .i-locked { display: none; }
+  .lock-btn.nudge { animation: nudge .45s var(--ease); }
+  /* in view mode the editing controls step back */
+  .view-locked .grp .tick, .view-locked .rej-btn, .view-locked .event .x, .view-locked .plan-del,
+  .view-locked #addBlockBtn, .view-locked #renamePlanBtn, .view-locked #chosenBtn, .view-locked #newPlan, .view-locked .add-course-btn,
+  .view-locked .head-actions [data-act=remove] { opacity: .35; }
+  .view-locked .event:not(.ghost) { cursor: default; }
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lock-btn[aria-pressed="true"] { color: #f2c14e; } }
+:root[data-theme="dark"] .lock-btn[aria-pressed="true"] { color: #f2c14e; }
+@keyframes nudge { 0%, 100% { transform: none; } 20% { transform: translateX(-5px) rotate(-6deg); } 45% { transform: translateX(5px) rotate(5deg); } 70% { transform: translateX(-3px); } }
