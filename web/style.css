@@ -1703,3 +1703,8 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
 .cm-custom input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 .cm-custom input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 6px; }
 .cm-custom input[type="color"]::-moz-color-swatch { border: 0; border-radius: 6px; }
+
+/* phones: the weekly calendar comes first, the course list under it */
+@media (max-width: 640px) {
+  .layout > .planner { order: -1; }
+}
