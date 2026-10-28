@@ -772,8 +772,9 @@ function mobileDayView(allDays, items, busy) {
   let day = state.mobileDay;
   if (!allDays.includes(day)) {
     const today = new Date().getDay();
-    // today if there are classes today, otherwise the first day that has any
-    day = used.has(today) && allDays.includes(today) ? today : allDays.find((d) => used.has(d)) ?? allDays[0];
+    // today if there are classes today, otherwise the next day that has any (Saturday moves on to Sunday)
+    const ahead = [0, 1, 2, 3, 4, 5, 6].map((i) => (today + i) % 7);
+    day = ahead.find((d) => used.has(d) && allDays.includes(d)) ?? allDays[0];
     // remember the choice only once every course of the term has loaded
     if (used.size && visibleCourses().every(entryOf)) state.mobileDay = day;
   }

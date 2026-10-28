@@ -1722,7 +1722,7 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
   .pb-fold svg { width: 18px; height: 18px; flex: none; color: var(--muted); transition: transform .25s var(--ease); }
   .pb-term.folded .pb-fold-sum { opacity: 1; }
   .pb-term:not(.folded) .pb-fold svg { transform: rotate(180deg); }
-  .pb-term.folded .termnav { display: none; }
+  .pb-term.folded .termnav, .pb-term.folded .bar-actions { display: none; }
 }
 
 /* ---------- phones: view / edit switch ---------- */
