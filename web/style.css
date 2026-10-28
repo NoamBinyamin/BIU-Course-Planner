@@ -1708,3 +1708,19 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
 @media (max-width: 640px) {
   .layout > .planner { order: -1; }
 }
+
+/* ---------- phones: fold the year & semester box ---------- */
+.pb-fold { display: none; }
+@media (max-width: 640px) {
+  .pb-label-wide { display: none; }
+  .pb-fold {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none;
+    cursor: pointer; text-align: start; color: inherit; -webkit-tap-highlight-color: transparent;
+  }
+  .pb-fold .pb-label { width: auto; min-width: 0; }
+  .pb-fold-sum { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .2s; }
+  .pb-fold svg { width: 18px; height: 18px; flex: none; color: var(--muted); transition: transform .25s var(--ease); }
+  .pb-term.folded .pb-fold-sum { opacity: 1; }
+  .pb-term:not(.folded) .pb-fold svg { transform: rotate(180deg); }
+  .pb-term.folded .termnav { display: none; }
+}

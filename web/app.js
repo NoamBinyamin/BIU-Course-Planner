@@ -384,6 +384,7 @@ function cardKeys() {
 // year › semester navigation; the add form's year/semester always mirror the active term
 function renderTermNav() {
   const { year, semester } = splitTerm(state.view);
+  $("termSummary").textContent = termLabel(state.view);
   const cur = currentAcademicYear();
   const years = [...new Set([cur + 1, cur, cur - 1, cur - 2, cur - 3, ...state.courses.map((c) => Number(c.year))])].sort((a, b) => b - a);
   const count = (y, sem) => state.courses.filter((c) => String(c.year) === String(y) && (!sem || c.semester === sem)).length;
@@ -3081,8 +3082,20 @@ function applyTheme(theme) {
   $("themeSwitch").querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.themeSet === (theme || "auto"))));
 }
 
+// phones: the year & semester box folds to one line (remembered on this device)
+function setTermFolded(folded) {
+  $("termRow").classList.toggle("folded", folded);
+  $("termFold").setAttribute("aria-expanded", String(!folded));
+}
+
 function init() {
   setupTooltips();
+  setTermFolded(store.get("ui.termFolded", false));
+  $("termFold").addEventListener("click", () => {
+    const folded = !$("termRow").classList.contains("folded");
+    store.set("ui.termFolded", folded);
+    setTermFolded(folded);
+  });
   setupSelects();
   applyTheme(store.get("ui.theme", "auto"));
   $("themeSwitch").addEventListener("click", (e) => {

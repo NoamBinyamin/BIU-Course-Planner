@@ -42,9 +42,14 @@
   </div>
 
   <nav class="plansbar" aria-label="שנה, סמסטר וחלופות">
-    <div class="pb-row pb-term">
-      <span class="pb-label">שנה וסמסטר</span>
-      <div class="termnav">
+    <div class="pb-row pb-term" id="termRow">
+      <span class="pb-label pb-label-wide">שנה וסמסטר</span>
+      <button type="button" class="pb-fold" id="termFold" aria-expanded="true" aria-controls="termNav">
+        <span class="pb-label">שנה וסמסטר</span>
+        <span class="pb-fold-sum" id="termSummary"></span>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>
+      </button>
+      <div class="termnav" id="termNav">
         <label class="term-year">
         <span class="sr-only">שנת לימודים</span>
         <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg>
