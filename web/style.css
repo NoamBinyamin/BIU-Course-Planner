@@ -1993,3 +1993,8 @@ body.on-map #mapView { display: block; }
 .tip .tt-item::before { content: ""; position: absolute; inset-inline-start: 0; top: 8px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--c); }
 .tip .tt-item b { font-size: 13.5px; font-weight: 700; }
 .tip .tt-item span { font-size: 12.5px; opacity: .85; }
+
+#campusSvg .m-walk { stroke: none; }
+#campusSvg .m-link path, #campusSvg .m-link-edge path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+#campusSvg .m-link path { stroke: var(--map-walk); stroke-width: 3.2; }
+#campusSvg .m-link-edge path { stroke: var(--map-walk-edge); stroke-width: 4.4; }

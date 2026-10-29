@@ -3279,7 +3279,11 @@ function mapBase() {
   const courts = CAMPUS.courts.map((c) => `<g class="m-court" transform="translate(${c.x} ${c.y}) rotate(${c.rot})" data-tip="מגרש ספורט">
       <rect x="${-c.w / 2}" y="${-c.h / 2}" width="${c.w}" height="${c.h}" rx="1.5"/>
       <path d="M0 ${-c.h / 2}V${c.h / 2}M${-c.w / 2 + 2} ${-c.h / 2 + 2}H${c.w / 2 - 2}V${c.h / 2 - 2}H${-c.w / 2 + 2}Z"/></g>`).join("");
-  mapBaseSVG = `${paths(CAMPUS.campus, "m-campus")}${paths(CAMPUS.lots, "m-lot")}${paths(CAMPUS.walks, "m-walk")}
+  // walkway links: one uniform round stroke with a thin edge, joining the walkway areas through the spots
+  // the illustration hides (under buildings, trees, labels)
+  const links = (CAMPUS.links || []).map((d) => `<path d="${d}"/>`).join("");
+  mapBaseSVG = `${paths(CAMPUS.campus, "m-campus")}${paths(CAMPUS.lots, "m-lot")}
+    <g class="m-link-edge">${links}</g>${paths(CAMPUS.walks, "m-walk")}<g class="m-link">${links}</g>
     ${paths(CAMPUS.water, "m-water")}${courts}<g class="m-trees">${trees}</g>
     ${paths(CAMPUS.roads, "m-road")}${paths(CAMPUS.rail, "m-rail")}`;
   return mapBaseSVG;
