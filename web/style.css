@@ -1747,3 +1747,43 @@ select[aria-expanded="true"] { border-color: var(--accent) !important; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lock-btn[aria-pressed="true"] { color: #f2c14e; } }
 :root[data-theme="dark"] .lock-btn[aria-pressed="true"] { color: #f2c14e; }
 @keyframes nudge { 0%, 100% { transform: none; } 20% { transform: translateX(-5px) rotate(-6deg); } 45% { transform: translateX(5px) rotate(5deg); } 70% { transform: translateX(-3px); } }
+
+/* ---------- groups at the same hours ---------- */
+.ev-more {
+  position: absolute; bottom: 3px; inset-inline-end: 3px; z-index: 2; height: 19px; min-width: 26px; padding: 0 6px;
+  border: 0; border-radius: 10px; background: var(--c); color: #fff; font: inherit; font-size: 11px; font-weight: 800;
+  cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / .18); transition: transform .12s var(--ease);
+}
+.ev-more:hover { transform: scale(1.1); }
+@media (hover: none), (pointer: coarse) { .ev-more { height: 24px; min-width: 32px; font-size: 12.5px; border-radius: 12px; } }
+.same-pop { min-width: 220px; }
+.sp-head { padding: 6px 12px 4px; font-size: 11.5px; font-weight: 700; opacity: .65; }
+.same-opt { display: flex; flex-direction: column; gap: 1px; white-space: normal; }
+.same-opt b { font-size: 14px; font-weight: 700; }
+.same-opt small { font-size: 12px; opacity: .7; }
+.same-opt.on { cursor: default; }
+
+/* while dragging: one lane per group, the lecturer's name first */
+.swap-target { inset-inline-end: auto; }
+.swap-target .st-who { color: var(--ink); font-size: 12.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.swap-target b:not(.st-who) { color: color-mix(in srgb, var(--c) 80%, var(--ink)); }
+.swap-target.current {
+  pointer-events: none; border-style: solid; opacity: .8;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 10%, var(--surface)) 0 6px, var(--surface) 6px 12px);
+}
+.st-now { font-size: 10.5px; font-weight: 700; color: var(--muted) !important; }
+
+/* ---------- calendar over the whole page ---------- */
+.cal-full-btn .i-shrink { display: none; }
+.cal-full-btn[aria-pressed="true"] .i-expand { display: none; }
+.cal-full-btn[aria-pressed="true"] .i-shrink { display: block; }
+.cal-full-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+body.cal-full { overflow: hidden; }
+body.cal-full main.wrap { z-index: auto; } /* let the calendar rise above the dimmed page */
+body.cal-full::before { content: ""; position: fixed; inset: 0; z-index: 69; background: rgb(16 28 22 / .45); backdrop-filter: blur(2px); }
+body.cal-full .planner {
+  position: fixed; inset: 12px; z-index: 70; height: auto; min-height: 0; max-height: none; margin: 0;
+  box-shadow: 0 30px 80px -10px rgb(0 0 0 / .4); animation: pop .2s var(--ease) both;
+}
+body.cal-full .cal-wrap { flex: 1 1 auto; height: auto; min-height: 0; }
+@media (max-width: 640px) { .cal-full-btn { display: none !important; } }

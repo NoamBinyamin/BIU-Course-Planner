@@ -847,7 +847,7 @@ function renderPlanner() {
   const len = (a, b) => `calc(${(((Math.min(b, end) - Math.max(a, start)) / span) * 100).toFixed(3)}% - 3px)`;
   $("calWrap").style.setProperty("--cal-natural", `${Math.round(span * PX_PER_MIN) + 36}px`);
   // the preview counts as "used", so hovering a group on a hidden day still shows it
-  const swapDays = swap ? swap.alts.flatMap((gs) => timedSessions(gs[0]).map((s) => s.day)) : [];
+  const swapDays = swap ? swap.times.flatMap((t) => timedSessions(t.lanes[0]).map((s) => s.day)) : [];
   const allDays = dayColumns([...items.flatMap(({ g }) => timedSessions(g).map((s) => s.day)), ...busy.map((b) => b.day), ...swapDays], friday);
   const dayList = swap ? allDays : mobileDayView(allDays, items, busy);
   calFrame = { start, end, dayList };
@@ -891,6 +891,7 @@ function renderPlanner() {
       const clash = !ev.ghost && (events.some((o) => o !== ev && !o.ghost && o.start < ev.end && ev.start < o.end) ||
         dayBusy.some((b) => toMin(b.start) < ev.end && ev.start < toMin(b.end)));
       const type = ev.s.type || ev.g.type;
+      if (!ev.ghost) ev.same = sameTimeGroups(ev.course, ev.g).length;
       const id = `${key}@${ev.s.day}${ev.s.start}`;
       const enter = !ev.ghost && !shownEvents.has(id);
       if (!ev.ghost) nextShown.add(id);
@@ -903,6 +904,8 @@ function renderPlanner() {
         <span>${esc(ev.s.teacher || ev.g.teacher)}</span>
         ${ev.s.building || ev.s.room ? `<span>${esc([ev.s.building, ev.s.room && `חדר ${ev.s.room}`].filter(Boolean).join(" · "))}</span>` : ""}
         ${ev.ghost ? "" : `<button type="button" class="x" data-unpick="${esc(key)}" aria-label="הסרה מהמערכת">${ICONS.x}</button>`}
+        ${!ev.ghost && ev.same ? `<button type="button" class="ev-more" data-same="${esc(key)}" title="עוד ${ev.same} ${ev.same === 1 ? "קבוצה" : "קבוצות"} באותן שעות – עם מרצה או מתרגל אחר"
+          aria-label="עוד ${ev.same} קבוצות באותן שעות"><bdi dir="ltr">+${ev.same}</bdi></button>` : ""}
       </div>`;
     }).join("");
     html += `<div class="cal-day" data-day="${day}">${lines}${busyHtml}${blocks}${swapTargetsHTML(day, at, len)}</div>`;
@@ -1357,29 +1360,95 @@ function swapOptions(key) {
     const k = selKey(course, a);
     if (state.rejected.has(k) || state.selected.has(k) || !timedSessions(a).length) continue;
     const slot = slotOf(a);
-    if (slot === mine) continue; // same time: nothing moves (the number is picked in the list)
     if (!slots.has(slot)) slots.set(slot, []);
     slots.get(slot).push(a);
   }
-  return { key, course, g, type, alts: [...slots.values()] };
+  // each time is drawn as side-by-side lanes, one per group; the class's own time keeps a lane for itself
+  const same = slots.get(mine) || [];
+  slots.delete(mine);
+  const times = [...slots.values()].map((list) => ({ lanes: list }));
+  if (same.length) times.unshift({ lanes: [g, ...same], current: true });
+  const choices = times.flatMap((t) => t.lanes.filter((x) => x !== g));
+  return { key, course, g, type, times, choices };
 }
+
+// other groups of the same lecture / tutorial that meet at exactly the same times
+function sameTimeGroups(course, g) {
+  const slot = slotOf(g);
+  if (!slot) return [];
+  const gs = sectionsFor(course).find(([t]) => t === (g.type || "מפגש"))?.[1] || [];
+  return gs.filter((a) => a !== g && slotOf(a) === slot && !state.rejected.has(selKey(course, a)) && !state.selected.has(selKey(course, a)));
+}
+
+const whoShort = (g) => { const t = teachersOf(g); return t.length ? `${t[0]}${t.length > 1 ? ` +${t.length - 1}` : ""}` : "מרצה טרם נקבע"; };
+const roomOf = (g) => { const s = timedSessions(g)[0] || {}; return [s.building, s.room && `חדר ${s.room}`].filter(Boolean).join(" · "); };
+
+function switchGroup(course, fromKey, to) {
+  const toKey = selKey(course, to);
+  if (fromKey === toKey) return;
+  checkpoint("החלפת קבוצה");
+  state.selected.delete(fromKey);
+  state.selected.add(toKey);
+  render();
+  undoToast(`${entryOf(course).name}: ${fromKey.split("|")[1]} ← ${to.group} (${whoShort(to)})`);
+}
+
+/* the "+N" tag: the groups at the same hours, to switch lecturer / tutor without moving the class */
+let samePop = null;
+function openSamePop(key, anchor) {
+  const course = state.courses.find((c) => key.startsWith(c.key + "|"));
+  const g = course && groupsFor(course).find((x) => selKey(course, x) === key);
+  if (!g) return;
+  closeSamePop();
+  const list = [g, ...sameTimeGroups(course, g)];
+  const pop = document.createElement("div");
+  pop.className = "tip sel-pop same-pop";
+  pop.dataset.key = key;
+  pop.innerHTML = `<div class="sp-head">${esc(g.type || "")} ב${esc(entryOf(course).name)} · ${esc(range(timedSessions(g)[0] || {}).replace(/<[^>]+>/g, ""))}</div>
+    <div class="sp-list" role="listbox">${list.map((x) => `<div class="sp-opt same-opt ${x === g ? "on" : ""}" role="option" aria-selected="${x === g}"
+      ${x === g ? "" : `data-swapto="${esc(x.group)}"`}><b>${esc(teachersOf(x).join(", ") || "מרצה טרם נקבע")}</b><small>קבוצה ${esc(x.group)}${roomOf(x) ? ` · ${esc(roomOf(x))}` : ""}${x === g ? " · הנוכחית" : ""}</small></div>`).join("")}</div>`;
+  floatingHost(anchor).appendChild(pop);
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  const below = innerHeight - r.bottom > h + 16 || innerHeight - r.bottom > r.top;
+  pop.classList.toggle("below", below);
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8));
+  placeFloating(pop, x, below ? r.bottom + 9 : r.top - h - 9);
+  pop.style.setProperty("--arrow", `${Math.max(14, Math.min(w - 14, r.left + r.width / 2 - x))}px`);
+  requestAnimationFrame(() => pop.classList.add("in"));
+  pop.addEventListener("click", (e) => {
+    const to = e.target.closest("[data-swapto]")?.dataset.swapto;
+    if (!to) return;
+    closeSamePop();
+    switchGroup(course, key, list.find((x) => x.group === to));
+  });
+  samePop = pop;
+}
+function closeSamePop() { samePop?.remove(); samePop = null; }
 
 function swapTargetsHTML(day, at, len) {
   if (!swap) return "";
   // what else is in the week, without the class being moved
   const others = selectedGroups(state.view).filter(({ course, g }) => selKey(course, g) !== swap.key).flatMap(({ g }) => timedSessions(g));
   const busy = busyFor(state.view);
-  return swap.alts.map((gs, i) => {
-    const clash = timedSessions(gs[0]).some((s) => others.some((o) => overlaps(s, o)) || busy.some((b) => overlaps(s, b)));
-    const who = [...new Set(gs.flatMap(teachersOf))];
-    return timedSessions(gs[0]).filter((s) => s.day === day).map((s) => `<div class="swap-target ${clash ? "clash" : ""} ${swap.over === i ? "over" : ""}" data-swap="${i}"
-        style="--c:${swap.course.color};top:calc(${at(toMin(s.start))} + 1px);height:${len(toMin(s.start), toMin(s.end))}"
-        title="${esc(`${swap.type} ${gs.map((g) => g.group).join(" / ")} · ${s.start}–${s.end}${who.length ? `\n${who.join(", ")}` : ""}${clash ? "\nמתנגש עם שיעור אחר או אילוץ" : ""}`)}">
-      <b>${esc(swap.type)} ${gs.map((g) => esc(g.group)).join("/")}</b>
-      <span>${range(s)}</span>
-      ${who.length ? `<span>${esc(who[0])}${who.length > 1 ? ` +${who.length - 1}` : ""}</span>` : ""}
-      ${clash ? `<i class="st-clash">${ICONS.warn}</i>` : ""}
-    </div>`).join("");
+  // every time of the day is a block; blocks that overlap sit side by side (like overlapping classes),
+  // and each block is split again into one lane per group
+  const blocks = swap.times.flatMap(({ lanes, current }) => timedSessions(lanes[0]).filter((s) => s.day === day)
+    .map((s) => ({ s, groups: lanes, current, start: toMin(s.start), end: toMin(s.end) })));
+  layoutLanes(blocks); // sets .lane / .lanes: the block's column among overlapping blocks
+  return blocks.map((blk) => {
+    const { s, current, groups } = blk;
+    const clash = !current && timedSessions(groups[0]).some((x) => others.some((o) => overlaps(x, o)) || busy.some((b) => overlaps(x, b)));
+    const bw = 100 / blk.lanes, w = bw / groups.length;
+    return groups.map((g, j) => {
+      const pos = `--c:${swap.course.color};top:calc(${at(blk.start)} + 1px);height:${len(blk.start, blk.end)};inset-inline-start:calc(${blk.lane * bw + j * w}% + 3px);width:calc(${w}% - 6px)`;
+      // the lecturer's name is what tells the lanes apart, so it leads
+      const body = `<b class="st-who">${esc(whoShort(g))}</b><span>${esc(swap.type)} ${esc(g.group)}</span><span>${range(s)}</span>`;
+      if (g === swap.g) return `<div class="swap-target current" style="${pos}">${body}<span class="st-now">הנוכחית</span></div>`;
+      const i = swap.choices.indexOf(g);
+      return `<div class="swap-target ${clash ? "clash" : ""} ${swap.over === i ? "over" : ""}" data-swap="${i}" style="${pos}"
+        title="${esc(`${teachersOf(g).join(", ") || "מרצה טרם נקבע"}\n${swap.type} ${g.group} · ${s.start}–${s.end}${roomOf(g) ? ` · ${roomOf(g)}` : ""}${clash ? "\nמתנגש עם שיעור אחר או אילוץ" : ""}`)}">
+        ${body}${clash ? `<i class="st-clash">${ICONS.warn}</i>` : ""}</div>`;
+    }).join("");
   }).join("");
 }
 
@@ -1387,8 +1456,8 @@ function startSwap(key, drag) {
   if (viewLocked) { lockedNotice(); return false; }
   const opts = swapOptions(key);
   if (!opts) return false;
-  if (!opts.alts.length) {
-    toast(`אין מועד אחר ל${opts.type} ב${entryOf(opts.course).name}`);
+  if (!opts.choices.length) {
+    toast(`אין קבוצה אחרת ל${opts.type} ב${entryOf(opts.course).name}`);
     return false;
   }
   swap = { ...opts, drag, over: null };
@@ -1404,13 +1473,8 @@ function endSwap(target) {
   const s = swap;
   swap = null;
   $("calendar").classList.remove("swapping");
-  if (target == null || !s.alts[target]) return renderPlanner();
-  const next = s.alts[target][0];
-  checkpoint("החלפת קבוצה");
-  state.selected.delete(s.key);
-  state.selected.add(selKey(s.course, next));
-  render();
-  undoToast(`${entryOf(s.course).name}: ${s.type} ${s.g.group} ← ${next.group}`);
+  if (target == null || !s.choices[target]) return renderPlanner();
+  switchGroup(s.course, s.key, s.choices[target]);
 }
 
 function initSwapDrag() {
@@ -1429,7 +1493,7 @@ function initSwapDrag() {
 
   cal.addEventListener("pointerdown", (e) => {
     const ev = e.target.closest(".event:not(.ghost)");
-    if (!ev || e.button > 0 || e.target.closest("[data-unpick]") || swap) return;
+    if (!ev || e.button > 0 || e.target.closest("[data-unpick], [data-same]") || swap) return;
     press = { key: ev.dataset.key, x: e.clientX, y: e.clientY, el: ev, mouse: e.pointerType === "mouse" };
     // touch: a long press marks the other times; a tap then picks one
     if (!press.mouse) press.timer = setTimeout(() => {
@@ -3102,7 +3166,7 @@ let viewLocked = phoneMQ.matches, lockTimer = 0;
 const EDIT_TARGETS = [
   ".grp", "[data-unpick]", "[data-reject]", "[data-act=remove]", "[data-act=refresh]", "[data-color-course]",
   "[data-delplan]", "#newPlanBtn", "[data-new]", "#renamePlanBtn", "#chosenBtn", "#addBlockBtn", "[data-busy]",
-  "[data-unbusy]", ".gen-save", "[data-pact]", "#addCourseBtn", "[data-open-add]", "[data-try]",
+  "[data-unbusy]", ".gen-save", "[data-pact]", "#addCourseBtn", "[data-open-add]", "[data-try]", "[data-swapto]",
 ].join(", ");
 
 function setViewLocked(locked) {
@@ -3154,8 +3218,28 @@ function setupViewLock() {
   phoneMQ.addEventListener("change", () => setViewLocked(phoneMQ.matches));
 }
 
+/* ---------- the calendar over the whole page (computer / tablet) ---------- */
+
+function setCalFull(on) {
+  document.body.classList.toggle("cal-full", on);
+  const b = $("calFullBtn");
+  b.setAttribute("aria-pressed", String(on));
+  b.title = on ? "חזרה לתצוגה הרגילה (Esc)" : "הרחבת הלוח לכל המסך";
+  b.setAttribute("aria-label", b.title);
+  renderPlanner();
+}
+
 function init() {
   setupTooltips();
+  $("calFullBtn").addEventListener("click", () => setCalFull(!document.body.classList.contains("cal-full")));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (samePop) return closeSamePop();
+    if (document.body.classList.contains("cal-full") && !swap && !document.querySelector("dialog[open]")) setCalFull(false);
+  });
+  document.addEventListener("pointerdown", (e) => { if (samePop && !samePop.contains(e.target) && !e.target.closest("[data-same]")) closeSamePop(); }, true);
+  window.addEventListener("scroll", (e) => { if (samePop && !samePop.contains(e.target)) closeSamePop(); }, true);
+  window.addEventListener("resize", closeSamePop);
   setupViewLock();
   setTermFolded(store.get("ui.termFolded", false));
   $("termFold").addEventListener("click", () => {
@@ -3494,8 +3578,11 @@ function init() {
       render();
       return undoToast(`${entryOf(c)?.name || ""} ${unpick.split("|")[1]} הוסרה מהמערכת`);
     }
+    const same = e.target.closest("[data-same]");
+    if (same) return samePop?.dataset.key === same.dataset.same ? closeSamePop() : openSamePop(same.dataset.same, same);
     const ev = e.target.closest(".event");
-    if (ev) revealGroup(ev.dataset.key);
+    // in the full-page calendar the list behind it stays where it is
+    if (ev && !document.body.classList.contains("cal-full")) revealGroup(ev.dataset.key);
   });
 
   $("publishBtn").addEventListener("click", publishSnapshot);
