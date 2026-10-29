@@ -2600,6 +2600,7 @@ function renderNow() {
     renderPlanner();
   }
   renderPlans();
+  renderMap();
   save();
 }
 
@@ -2888,7 +2889,7 @@ function setupTooltips() {
   // the nearest element with something to say; native titles move to data-tip so the browser's own box never shows
   const find = (node) => {
     for (let el = node; el && el !== document.body; el = el.parentElement) {
-      if (!(el instanceof HTMLElement) || el.closest(".info, .tip")) return null; // (i) icons have their own bubble
+      if (!(el instanceof Element) || el.closest(".info, .tip")) return null; // (i) icons have their own bubble
       if (el.hasAttribute("title")) {
         const t = el.getAttribute("title");
         el.removeAttribute("title");
@@ -3230,6 +3231,223 @@ function setCalFull(on) {
   renderPlanner();
 }
 
+/* ---------- campus map: a page of its own (#map) with the buildings of the open plan colored in ---------- */
+
+let mapDay = null;          // weekday shown on the map; "all" for the whole week
+let mapSelected = null;     // building id picked on the map or in the list
+let mapVB = null;           // current viewBox [x, y, w, h]
+const onMapPage = () => location.hash === "#map";
+const BLD = new Map(CAMPUS.buildings.map((b) => [b.id, b]));
+
+// "מ.ישראל-504" / "וואהל 1401" -> the building on the map, if it is one
+function buildingOf(s) {
+  const nums = String(s.building || s.location || "").match(/\d{3,4}/g);
+  if (!nums) return null;
+  const n = nums[nums.length - 1];
+  return BLD.has(n) ? n : BLD.has(`${n}A`) ? `${n}A` : null;
+}
+
+function applyRoute() {
+  const on = onMapPage();
+  document.body.classList.toggle("on-map", on);
+  $("mapLink").setAttribute("aria-current", on ? "page" : "false");
+  $("mapLink").querySelector("span").textContent = on ? "חזרה למערכת" : "מפת הקמפוס";
+  $("mapLink").href = on ? "#" : "#map";
+  if (on) {
+    mapDay = null;
+    mapSelected = null;
+    mapVB = null;
+    renderMap();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+}
+
+function mapSessions() {
+  return selectedGroups(state.view).flatMap(({ course, g }) => timedSessions(g).map((s) => ({ course, g, s, bld: buildingOf(s) })))
+    .sort((a, b) => a.s.day - b.s.day || toMin(a.s.start) - toMin(b.s.start));
+}
+
+function renderMap() {
+  if (!onMapPage()) return;
+  const all = mapSessions();
+  const days = [...new Set(all.map((x) => x.s.day))].sort();
+  if (mapDay !== "all" && !days.includes(mapDay)) {
+    // today, or the next day that has classes
+    const today = new Date().getDay();
+    mapDay = [0, 1, 2, 3, 4, 5, 6].map((i) => (today + i) % 7).find((d) => days.includes(d)) ?? "all";
+  }
+  const shown = all.filter((x) => mapDay === "all" || x.s.day === mapDay);
+
+  $("mapSub").textContent = `${activePlan().name} · ${termLabel(state.view)}`;
+  $("mapPlan").innerHTML = termPlans().map((p) => `<option value="${p.id}" ${p.id === activePlan().id ? "selected" : ""}>${p.chosen ? "★ " : ""}${esc(p.name)}</option>`).join("");
+  $("mapDays").innerHTML = [["all", "כל השבוע"], ...days.map((d) => [d, `${DAY_SHORT[d]} · ${DAY_FULL[d]}`])].map(([d, label]) =>
+    `<button type="button" role="tab" data-mapday="${d}" aria-selected="${String(d) === String(mapDay)}">${label}</button>`).join("");
+
+  // which courses meet in each building (in time order)
+  const inBld = new Map();
+  for (const x of shown) {
+    if (!x.bld) continue;
+    if (!inBld.has(x.bld)) inBld.set(x.bld, []);
+    inBld.get(x.bld).push(x);
+  }
+  // the two "area" labels for 502 / 508 light up together with the number
+  const lit = (id) => inBld.get(id) || [];
+
+  const svg = $("campusSvg");
+  if (!mapVB) mapVB = [...CAMPUS.view];
+  svg.setAttribute("viewBox", mapVB.join(" "));
+  const defs = [], marks = [];
+  const ordered = [...CAMPUS.buildings].sort((a, b) => (lit(a.id).length > 0) - (lit(b.id).length > 0));
+  for (const b of ordered) {
+    const xs = lit(b.id);
+    const label = b.id;
+    // buildings with classes are drawn larger, the rest stay small and quiet
+    const big = xs.length > 0;
+    const w = (big ? 16 : 10) + label.length * (big ? 8.4 : 5.6), h = big ? 24 : 15;
+    const courses = [...new Map(xs.map((x) => [x.course.key, x.course])).values()];
+    let fill = "";
+    if (courses.length > 1) {
+      // several courses in one building: equal stripes of their colors
+      const id = `bg${b.id}`;
+      defs.push(`<linearGradient id="${id}">${courses.map((c, i) => `<stop offset="${i / courses.length}" stop-color="${c.color}"/><stop offset="${(i + 1) / courses.length}" stop-color="${c.color}"/>`).join("")}</linearGradient>`);
+      fill = `url(#${id})`;
+    } else if (courses.length) fill = courses[0].color;
+    const tip = [`${b.id}${b.name ? ` · ${b.name}` : ""}`, ...xs.map((x) => `${entryOf(x.course).name} · ${DAY_SHORT[x.s.day]} ${x.s.start}–${x.s.end} · ${x.s.teacher || x.g.teacher || ""}`)].join("\n");
+    marks.push(`<g class="bld ${xs.length ? "lit" : ""} ${mapSelected === b.id ? "sel" : ""} ${b.area ? "area" : ""}" data-bld="${b.id}" data-tip="${esc(tip)}"
+        transform="translate(${b.x} ${b.y})" tabindex="${xs.length ? 0 : -1}" role="button" aria-label="${esc(tip.split("\n")[0])}">
+      <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${h / 2}" ${fill ? `style="fill:${fill}"` : ""}/>
+      <text y="0.5">${esc(label)}</text>
+      ${xs.length ? `<g class="cnt" transform="translate(${w / 2 - 2} ${-h / 2 + 2})"><circle r="8"/><text y="0.5">${xs.length}</text></g>` : ""}
+    </g>`);
+  }
+  svg.innerHTML = `<defs>${defs.join("")}</defs>
+    <rect class="m-bg" x="-500" y="-500" width="2200" height="2400"/>
+    ${CAMPUS.outline.map((d) => `<path class="m-campus" d="${d}"/>`).join("")}
+    ${CAMPUS.roads.map((d) => `<path class="m-road" d="${d}"/>`).join("")}
+    ${CAMPUS.rail.map((d) => `<path class="m-rail" d="${d}"/>`).join("")}
+    <g class="m-names">
+      <text transform="translate(258 640) rotate(-86)">כביש 4</text>
+      <text transform="translate(735 1050) rotate(-37)">כביש 471 · מכבית</text>
+      <text transform="translate(575 545) rotate(63)">רח' מקס ואנה ווב</text>
+      <text transform="translate(720 30) rotate(-3)">רח' ז'בוטינסקי</text>
+      <text class="zone" x="640" y="250">קמפוס צפוני</text>
+      <text class="zone" x="560" y="1000">קמפוס דרומי</text>
+    </g>
+    ${marks.join("")}`;
+
+  // the list beside the map
+  const unknown = shown.filter((x) => !x.bld);
+  const row = (x) => `<li class="ml-row ${x.bld && x.bld === mapSelected ? "on" : ""}" style="--c:${x.course.color}" ${x.bld ? `data-bld="${x.bld}"` : ""}>
+      <i class="dot"></i>
+      <div class="ml-main"><b>${esc(entryOf(x.course).name)}</b>
+        <span>${mapDay === "all" ? `${DAY_SHORT[x.s.day]} · ` : ""}${range(x.s)} · ${esc(x.s.teacher || x.g.teacher || "מרצה טרם נקבע")}</span></div>
+      ${x.bld ? `<span class="ml-bld">${esc(x.bld)}</span>` : ""}
+    </li>`;
+  const sel = mapSelected && BLD.get(mapSelected);
+  $("mapList").innerHTML = (sel ? `<div class="ml-sel"><b>בניין ${esc(sel.id)}</b>${sel.name ? `<span>${esc(sel.name)}</span>` : ""}
+      <button type="button" class="btn text" data-mapclear>הצגת הכל</button></div>` : "") +
+    (shown.length ? `<ul class="ml-list">${shown.filter((x) => x.bld).map(row).join("")}</ul>` :
+      `<p class="muted ml-empty">${all.length ? "אין שיעורים ביום הזה." : "עדיין לא נבחרו קבוצות בחלופה הזו."}</p>`) +
+    (unknown.length ? `<h4 class="ml-h">מיקום לא מזוהה במפה</h4><ul class="ml-list unknown">${unknown.map((x) => row(x).replace("</div>", `<span class="ml-where">${esc(x.s.location || x.s.building || "ללא מיקום")}</span></div>`)).join("")}</ul>` : "");
+}
+
+// zoom around a point of the screen; pan by dragging; two fingers pinch
+function setupMap() {
+  const svg = $("campusSvg");
+  const full = () => CAMPUS.view;
+  const apply = () => svg.setAttribute("viewBox", mapVB.join(" "));
+  const toMap = (cx, cy) => {
+    const r = svg.getBoundingClientRect();
+    // the SVG keeps its aspect ratio (meet): work out the drawn scale and offset
+    const s = Math.min(r.width / mapVB[2], r.height / mapVB[3]);
+    const ox = r.left + (r.width - mapVB[2] * s) / 2, oy = r.top + (r.height - mapVB[3] * s) / 2;
+    return [mapVB[0] + (cx - ox) / s, mapVB[1] + (cy - oy) / s, s];
+  };
+  const zoom = (f, cx, cy) => {
+    const [fw, fh] = [full()[2], full()[3]];
+    const w = Math.min(fw * 1.2, Math.max(fw / 7, mapVB[2] / f)), k = w / mapVB[2];
+    const [mx, my] = cx == null ? [mapVB[0] + mapVB[2] / 2, mapVB[1] + mapVB[3] / 2] : toMap(cx, cy);
+    mapVB = [mx - (mx - mapVB[0]) * k, my - (my - mapVB[1]) * k, w, mapVB[3] * k];
+    apply();
+  };
+  svg.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, { passive: false });
+  const ptrs = new Map();
+  let pinch = null, moved = false;
+  svg.addEventListener("pointerdown", (e) => {
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    moved = false;
+    if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
+    }
+  });
+  svg.addEventListener("pointermove", (e) => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) return;
+    if (ptrs.size === 2 && pinch) {
+      p.x = e.clientX; p.y = e.clientY;
+      const [a, b] = [...ptrs.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      zoom(d / pinch.d, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      pinch.d = d; moved = true;
+      return;
+    }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    // only a real drag holds the pointer, so a plain click still reaches the building under it
+    if (!moved) svg.setPointerCapture(e.pointerId);
+    moved = true;
+    const s = toMap(0, 0)[2];
+    mapVB[0] -= dx / s; mapVB[1] -= dy / s;
+    p.x = e.clientX; p.y = e.clientY;
+    svg.classList.add("panning");
+    apply();
+  });
+  const up = (e) => {
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    svg.classList.remove("panning");
+  };
+  svg.addEventListener("pointerup", up);
+  svg.addEventListener("pointercancel", up);
+  // a tap on a building (not the end of a drag) picks it
+  svg.addEventListener("click", (e) => {
+    if (moved) return;
+    const g = e.target.closest(".bld.lit");
+    mapSelected = g && g.dataset.bld !== mapSelected ? g.dataset.bld : null;
+    renderMap();
+  });
+  svg.addEventListener("keydown", (e) => {
+    const g = e.target.closest?.(".bld.lit");
+    if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); mapSelected = g.dataset.bld; renderMap(); }
+  });
+  $("mapZoomIn").addEventListener("click", () => zoom(1.4));
+  $("mapZoomOut").addEventListener("click", () => zoom(1 / 1.4));
+  $("mapFit").addEventListener("click", () => { mapVB = [...full()]; apply(); });
+  $("mapDays").addEventListener("click", (e) => {
+    const d = e.target.closest("[data-mapday]")?.dataset.mapday;
+    if (d == null) return;
+    mapDay = d === "all" ? "all" : Number(d);
+    mapSelected = null;
+    renderMap();
+  });
+  $("mapPlan").addEventListener("change", (e) => { switchPlan(e.target.value); });
+  $("mapList").addEventListener("click", (e) => {
+    if (e.target.closest("[data-mapclear]")) { mapSelected = null; return renderMap(); }
+    const id = e.target.closest("[data-bld]")?.dataset.bld;
+    if (!id) return;
+    mapSelected = id;
+    // bring the building into view when zoomed in
+    const b = BLD.get(id);
+    if (b.x < mapVB[0] || b.x > mapVB[0] + mapVB[2] || b.y < mapVB[1] || b.y > mapVB[1] + mapVB[3]) {
+      mapVB[0] = b.x - mapVB[2] / 2; mapVB[1] = b.y - mapVB[3] / 2;
+    }
+    renderMap();
+  });
+  window.addEventListener("hashchange", applyRoute);
+  applyRoute();
+}
+
 function init() {
   setupTooltips();
   $("calFullBtn").addEventListener("click", () => setCalFull(!document.body.classList.contains("cal-full")));
@@ -3242,6 +3460,7 @@ function init() {
   window.addEventListener("scroll", (e) => { if (samePop && !samePop.contains(e.target)) closeSamePop(); }, true);
   window.addEventListener("resize", closeSamePop);
   setupViewLock();
+  setupMap();
   setTermFolded(store.get("ui.termFolded", false));
   $("termFold").addEventListener("click", () => {
     const folded = !$("termRow").classList.contains("folded");
