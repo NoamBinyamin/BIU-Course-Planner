@@ -899,9 +899,8 @@ function renderPlanner() {
           data-key="${esc(key)}" style="--c:${ev.course.color};top:calc(${at(ev.start)} + 1px);height:${len(ev.start, ev.end)};inset-inline-start:calc(${ev.lane * w}% + 3px);width:calc(${w}% - 6px)"
           title="${esc(`${ev.name}\n${type} ${ev.g.group} · ${ev.s.teacher || ev.g.teacher}\nיום ${ev.s.dayLabel}' ${ev.s.start}–${ev.s.end}\n${ev.s.location || ""}`)}">
         <b>${esc(ev.name)}</b>
-        <span class="t">${esc(type)} ${esc(ev.g.group)}</span>
+        <span class="t">${esc(ev.s.teacher || ev.g.teacher || "מרצה טרם נקבע")}</span>
         <span class="tm">${range(ev.s)}</span>
-        <span>${esc(ev.s.teacher || ev.g.teacher)}</span>
         ${ev.s.building || ev.s.room ? `<span>${esc([ev.s.building, ev.s.room && `חדר ${ev.s.room}`].filter(Boolean).join(" · "))}</span>` : ""}
         ${ev.ghost ? "" : `<button type="button" class="x" data-unpick="${esc(key)}" aria-label="הסרה מהמערכת">${ICONS.x}</button>`}
         ${!ev.ghost && ev.same ? `<button type="button" class="ev-more" data-same="${esc(key)}" title="עוד ${ev.same} ${ev.same === 1 ? "קבוצה" : "קבוצות"} באותן שעות – עם מרצה או מתרגל אחר"
@@ -1367,7 +1366,7 @@ function swapOptions(key) {
   const same = slots.get(mine) || [];
   slots.delete(mine);
   const times = [...slots.values()].map((list) => ({ lanes: list }));
-  if (same.length) times.unshift({ lanes: [g, ...same], current: true });
+  if (same.length) times.unshift({ lanes: gs.filter((x) => x === g || same.includes(x)), current: true });
   const choices = times.flatMap((t) => t.lanes.filter((x) => x !== g));
   return { key, course, g, type, times, choices };
 }
@@ -1400,7 +1399,9 @@ function openSamePop(key, anchor) {
   const g = course && groupsFor(course).find((x) => selKey(course, x) === key);
   if (!g) return;
   closeSamePop();
-  const list = [g, ...sameTimeGroups(course, g)];
+  // a fixed order (by group number), so the chosen group doesn't jump to the top
+  const others = sameTimeGroups(course, g);
+  const list = (sectionsFor(course).find(([t]) => t === (g.type || "מפגש"))?.[1] || []).filter((x) => x === g || others.includes(x));
   const pop = document.createElement("div");
   pop.className = "tip sel-pop same-pop";
   pop.dataset.key = key;
