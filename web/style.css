@@ -1948,3 +1948,48 @@ body.on-map #mapView { display: block; }
 .ml-bld { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; padding: 4px 10px; border-radius: 10px; }
 .ml-bld b { font-size: 13.5px; font-weight: 800; }
 .ml-bld small { font-size: 11px; font-weight: 600; opacity: .92; white-space: nowrap; }
+
+/* ---------- map v2: nature, lots, points of interest ---------- */
+:root { --map-lot: #e6e2d5; --map-water: #a8d5ee; --map-tree: #8fbf86; --map-tree-s: rgb(40 70 40 / .16); --map-court: #6fae7a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --map-lot: #232d28; --map-water: #1d3f55; --map-tree: #2c4a33; --map-tree-s: rgb(0 0 0 / .3); --map-court: #2f5a3a; } }
+:root[data-theme="dark"] { --map-lot: #232d28; --map-water: #1d3f55; --map-tree: #2c4a33; --map-tree-s: rgb(0 0 0 / .3); --map-court: #2f5a3a; }
+#campusSvg .m-campus { fill: var(--map-campus); fill-rule: evenodd; stroke: var(--map-edge); stroke-width: 1.5; }
+#campusSvg .m-lot { fill: var(--map-lot); fill-rule: evenodd; }
+#campusSvg .m-walk { stroke-width: .5; }
+#campusSvg .m-water { fill: var(--map-water); fill-rule: evenodd; }
+#campusSvg .m-tree { fill: var(--map-tree); }
+#campusSvg .m-tree-s { fill: var(--map-tree-s); }
+#campusSvg .m-court rect { fill: var(--map-court); }
+#campusSvg .m-court path { fill: none; stroke: rgb(255 255 255 / .85); stroke-width: .7; }
+#campusSvg .poi { cursor: default; }
+#campusSvg .poi text { font-size: 7px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; fill: #fff; pointer-events: none; }
+#campusSvg .poi.gate path { fill: #e3262b; stroke: #fff; stroke-width: 1.2; stroke-linejoin: round; }
+#campusSvg .poi.gate text { font-size: 6.5px; }
+#campusSvg .poi.parking rect { fill: #2c5aa0; stroke: #fff; stroke-width: 1.2; }
+#campusSvg .poi.parking text { font-size: 9px; }
+#campusSvg .poi.shuttle rect { fill: #8b1a1f; stroke: #fff; stroke-width: 1; }
+#campusSvg .poi.food circle { fill: #5b3a1e; stroke: #fff; stroke-width: 1.1; }
+#campusSvg .poi.food path { fill: none; stroke: #fff; stroke-width: .9; stroke-linecap: round; stroke-linejoin: round; }
+
+.map-layers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ml-layer {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: inherit; font-size: 13px; font-weight: 600;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+.ml-layer i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); opacity: .35; }
+.ml-layer[aria-pressed="true"] { color: var(--ink); border-color: color-mix(in srgb, var(--c) 45%, var(--line)); background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
+.ml-layer[aria-pressed="true"] i { opacity: 1; }
+.ml-layer.parking { --c: #2c5aa0; } .ml-layer.gate { --c: #e3262b; } .ml-layer.food { --c: #5b3a1e; } .ml-layer.shuttle { --c: #8b1a1f; }
+@media (hover: none), (pointer: coarse) { .ml-layer { height: 38px; } }
+#mapList { display: flex; flex-direction: column; gap: 10px; }
+
+/* structured tooltip (a building and its classes) */
+.tip.rich { white-space: normal; padding: 0; min-width: 210px; max-width: min(300px, calc(100vw - 16px)); }
+.tip .tt-h { display: flex; flex-direction: column; gap: 1px; padding: 9px 12px 8px; }
+.tip .tt-h b { font-size: 14.5px; font-weight: 800; }
+.tip .tt-h span { font-size: 12px; opacity: .7; }
+.tip .tt-item { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px 9px; border-top: 1px solid color-mix(in srgb, var(--tip-ink) 18%, transparent); position: relative; }
+.tip .tt-item::before { content: ""; position: absolute; inset-inline-start: 0; top: 8px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--c); }
+.tip .tt-item b { font-size: 13.5px; font-weight: 700; }
+.tip .tt-item span { font-size: 12.5px; opacity: .85; }

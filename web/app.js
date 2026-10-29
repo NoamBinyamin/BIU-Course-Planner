@@ -2916,7 +2916,9 @@ function setupTooltips() {
     // moving straight from one tooltip to the next shows it right away
     timer = setTimeout(() => {
       if (target !== el || !el.isConnected) return;
-      tip.textContent = el.dataset.tip || el.textContent.trim();
+      // built from escaped text only (see renderMap)
+      if (el.dataset.tipHtml) tip.innerHTML = el.dataset.tipHtml; else tip.textContent = el.dataset.tip || el.textContent.trim();
+      tip.classList.toggle("rich", !!el.dataset.tipHtml);
       floatingHost(el).appendChild(tip); // inside an open dialog, so it shows above it
       tip.hidden = false;
       tip.classList.remove("in");
@@ -3267,8 +3269,38 @@ function mapSessions() {
     .sort((a, b) => a.s.day - b.s.day || toMin(a.s.start) - toMin(b.s.start));
 }
 
+// the parts of the map that never change, built once
+let mapBaseSVG = "";
+function mapBase() {
+  if (mapBaseSVG) return mapBaseSVG;
+  const paths = (list, cls) => list.map((d) => `<path class="${cls}" d="${d}"/>`).join("");
+  // a tree: a soft shadow and a round crown
+  const trees = CAMPUS.trees.map(([x, y, r]) => `<circle class="m-tree-s" cx="${x + r * 0.25}" cy="${y + r * 0.3}" r="${r}"/><circle class="m-tree" cx="${x}" cy="${y}" r="${r}"/>`).join("");
+  const courts = CAMPUS.courts.map((c) => `<g class="m-court" transform="translate(${c.x} ${c.y}) rotate(${c.rot})" data-tip="מגרש ספורט">
+      <rect x="${-c.w / 2}" y="${-c.h / 2}" width="${c.w}" height="${c.h}" rx="1.5"/>
+      <path d="M0 ${-c.h / 2}V${c.h / 2}M${-c.w / 2 + 2} ${-c.h / 2 + 2}H${c.w / 2 - 2}V${c.h / 2 - 2}H${-c.w / 2 + 2}Z"/></g>`).join("");
+  mapBaseSVG = `${paths(CAMPUS.campus, "m-campus")}${paths(CAMPUS.lots, "m-lot")}${paths(CAMPUS.walks, "m-walk")}
+    ${paths(CAMPUS.water, "m-water")}${courts}<g class="m-trees">${trees}</g>
+    ${paths(CAMPUS.roads, "m-road")}${paths(CAMPUS.rail, "m-rail")}`;
+  return mapBaseSVG;
+}
+
+const MAP_LAYERS = { parking: "חניות", gate: "שערים", food: "מסעדות וקפה", shuttle: "תחנות שאטל" };
+const mapLayers = new Set(store.get("ui.mapLayers", ["parking", "gate", "food"]));
+function mapPois() {
+  return CAMPUS.pois.filter((p) => mapLayers.has(p.t)).map((p) => {
+    const at = `transform="translate(${p.x} ${p.y})"`;
+    if (p.t === "gate") return `<g class="poi gate" ${at} data-tip="שער ${p.n}"><path d="M-9 -7.5H9L0 7.5Z"/><text y="-2.2">${p.n}</text></g>`;
+    if (p.t === "shuttle") return `<g class="poi shuttle" ${at} data-tip="תחנת שאטל ${p.n}"><rect x="-6" y="-6" width="12" height="12" rx="3"/><text y="0.5">${p.n}</text></g>`;
+    if (p.t === "parking") return `<g class="poi parking" ${at} data-tip="חניה"><rect x="-6.5" y="-6.5" width="13" height="13" rx="3.5"/><text y="0.6">P</text></g>`;
+    return `<g class="poi food" ${at} data-tip="מסעדה / בית קפה"><circle r="6.5"/><path d="M-2.6 -3.6v3.2a1.3 1.3 0 0 0 2.6 0v-3.2M-1.3 -3.6v7.4M2.4 3.8v-7.4c-1.4.6-2 2-2 3.6s.6 2.2 2 2.4"/></g>`;
+  }).join("");
+}
+
 function renderMap() {
   if (!onMapPage()) return;
+  $("mapLayers").innerHTML = Object.entries(MAP_LAYERS).map(([k, label]) =>
+    `<button type="button" class="ml-layer ${k}" data-layer="${k}" aria-pressed="${mapLayers.has(k)}"><i></i>${label}</button>`).join("");
   const all = mapSessions();
   const days = [...new Set(all.map((x) => x.s.day))].sort();
   if (mapDay !== "all" && !days.includes(mapDay)) {
@@ -3313,9 +3345,14 @@ function renderMap() {
       fill = `url(#${id})`;
     } else if (courses.length) fill = courses[0].color;
     const tip = [`${b.id}${b.name ? ` · ${b.name}` : ""}`, ...xs.map((x) => `${entryOf(x.course).name} · ${DAY_SHORT[x.s.day]} ${x.s.start}–${x.s.end}${x.s.room ? ` · חדר ${x.s.room}` : ""} · ${x.s.teacher || x.g.teacher || ""}`)].join("\n");
+    const tipHtml = `<div class="tt-h"><b>בניין ${esc(b.id)}</b>${b.name ? `<span>${esc(b.name)}</span>` : ""}</div>` + xs.map((x) => `<div class="tt-item" style="--c:${x.course.color}">
+        <b>${esc(entryOf(x.course).name)}</b>
+        <span>יום ${esc(DAY_FULL[x.s.day])} · <bdi dir="ltr">${esc(x.s.start)}–${esc(x.s.end)}</bdi></span>
+        ${x.s.room ? `<span>חדר ${esc(x.s.room)}</span>` : ""}
+        <span>${esc(x.s.teacher || x.g.teacher || "מרצה טרם נקבע")}</span></div>`).join("");
     // the rooms used in this building, shown under it
     const rooms = [...new Set(xs.map((x) => x.s.room).filter(Boolean))];
-    marks.push(`<g class="bld ${xs.length ? "lit" : ""} ${mapSelected === b.id ? "sel" : ""} ${b.area ? "area" : ""}" data-bld="${b.id}" data-tip="${esc(tip)}"
+    marks.push(`<g class="bld ${xs.length ? "lit" : ""} ${mapSelected === b.id ? "sel" : ""} ${b.area ? "area" : ""}" data-bld="${b.id}" data-tip="${esc(tip)}" data-tip-html="${esc(tipHtml)}"
         transform="translate(${b.x} ${b.y})" tabindex="${xs.length ? 0 : -1}" role="button" aria-label="${esc(tip.split("\n")[0])}">
       ${xs.length ? `<rect class="halo" x="${-w / 2 - 6}" y="${-h / 2 - 6}" width="${w + 12}" height="${h + 12}" rx="${h / 2 + 6}" style="fill:${courses[0].color}"/>` : ""}
       <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${h / 2}" ${fill ? `style="fill:${fill}"` : ""}/>
@@ -3326,16 +3363,14 @@ function renderMap() {
   }
   svg.innerHTML = `<defs>${defs.join("")}</defs>
     <rect class="m-bg" x="-500" y="-500" width="2200" height="2400"/>
-    ${CAMPUS.outline.map((d) => `<path class="m-campus" d="${d}"/>`).join("")}
-    ${(CAMPUS.walks || []).map((d) => `<path class="m-walk" d="${d}"/>`).join("")}
-    ${CAMPUS.roads.map((d) => `<path class="m-road" d="${d}"/>`).join("")}
-    ${CAMPUS.rail.map((d) => `<path class="m-rail" d="${d}"/>`).join("")}
+    ${mapBase()}
     <g class="m-names">
       <text transform="translate(258 640) rotate(-86)">כביש 4</text>
       <text transform="translate(735 1050) rotate(-37)">כביש 471 · מכבית</text>
       <text transform="translate(575 545) rotate(63)">רח' מקס ואנה ווב</text>
       <text transform="translate(720 30) rotate(-3)">רח' ז'בוטינסקי</text>
     </g>
+    ${mapPois()}
     ${marks.join("")}`;
 
   // the list beside the map
@@ -3436,6 +3471,13 @@ function setupMap() {
     renderMap();
   });
   $("mapPlan").addEventListener("change", (e) => { switchPlan(e.target.value); });
+  $("mapLayers").addEventListener("click", (e) => {
+    const k = e.target.closest("[data-layer]")?.dataset.layer;
+    if (!k) return;
+    mapLayers.has(k) ? mapLayers.delete(k) : mapLayers.add(k);
+    store.set("ui.mapLayers", [...mapLayers]);
+    renderMap();
+  });
   $("mapList").addEventListener("click", (e) => {
     if (e.target.closest("[data-mapclear]")) { mapSelected = null; return renderMap(); }
     const id = e.target.closest("[data-bld]")?.dataset.bld;
