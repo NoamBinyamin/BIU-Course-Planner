@@ -3312,17 +3312,22 @@ function renderMap() {
       defs.push(`<linearGradient id="${id}">${courses.map((c, i) => `<stop offset="${i / courses.length}" stop-color="${c.color}"/><stop offset="${(i + 1) / courses.length}" stop-color="${c.color}"/>`).join("")}</linearGradient>`);
       fill = `url(#${id})`;
     } else if (courses.length) fill = courses[0].color;
-    const tip = [`${b.id}${b.name ? ` · ${b.name}` : ""}`, ...xs.map((x) => `${entryOf(x.course).name} · ${DAY_SHORT[x.s.day]} ${x.s.start}–${x.s.end} · ${x.s.teacher || x.g.teacher || ""}`)].join("\n");
+    const tip = [`${b.id}${b.name ? ` · ${b.name}` : ""}`, ...xs.map((x) => `${entryOf(x.course).name} · ${DAY_SHORT[x.s.day]} ${x.s.start}–${x.s.end}${x.s.room ? ` · חדר ${x.s.room}` : ""} · ${x.s.teacher || x.g.teacher || ""}`)].join("\n");
+    // the rooms used in this building, shown under it
+    const rooms = [...new Set(xs.map((x) => x.s.room).filter(Boolean))];
     marks.push(`<g class="bld ${xs.length ? "lit" : ""} ${mapSelected === b.id ? "sel" : ""} ${b.area ? "area" : ""}" data-bld="${b.id}" data-tip="${esc(tip)}"
         transform="translate(${b.x} ${b.y})" tabindex="${xs.length ? 0 : -1}" role="button" aria-label="${esc(tip.split("\n")[0])}">
+      ${xs.length ? `<rect class="halo" x="${-w / 2 - 6}" y="${-h / 2 - 6}" width="${w + 12}" height="${h + 12}" rx="${h / 2 + 6}" style="fill:${courses[0].color}"/>` : ""}
       <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="${h / 2}" ${fill ? `style="fill:${fill}"` : ""}/>
       <text y="0.5">${esc(label)}</text>
+      ${rooms.length ? `<text class="rooms" y="${h / 2 + 11}">${rooms.length > 1 ? "חדרים" : "חדר"} ${esc(rooms.join(" · "))}</text>` : ""}
       ${xs.length ? `<g class="cnt" transform="translate(${w / 2 - 2} ${-h / 2 + 2})"><circle r="8"/><text y="0.5">${xs.length}</text></g>` : ""}
     </g>`);
   }
   svg.innerHTML = `<defs>${defs.join("")}</defs>
     <rect class="m-bg" x="-500" y="-500" width="2200" height="2400"/>
     ${CAMPUS.outline.map((d) => `<path class="m-campus" d="${d}"/>`).join("")}
+    ${(CAMPUS.walks || []).map((d) => `<path class="m-walk" d="${d}"/>`).join("")}
     ${CAMPUS.roads.map((d) => `<path class="m-road" d="${d}"/>`).join("")}
     ${CAMPUS.rail.map((d) => `<path class="m-rail" d="${d}"/>`).join("")}
     <g class="m-names">
@@ -3330,8 +3335,6 @@ function renderMap() {
       <text transform="translate(735 1050) rotate(-37)">כביש 471 · מכבית</text>
       <text transform="translate(575 545) rotate(63)">רח' מקס ואנה ווב</text>
       <text transform="translate(720 30) rotate(-3)">רח' ז'בוטינסקי</text>
-      <text class="zone" x="640" y="250">קמפוס צפוני</text>
-      <text class="zone" x="560" y="1000">קמפוס דרומי</text>
     </g>
     ${marks.join("")}`;
 
@@ -3341,7 +3344,7 @@ function renderMap() {
       <i class="dot"></i>
       <div class="ml-main"><b>${esc(entryOf(x.course).name)}</b>
         <span>${mapDay === "all" ? `${DAY_SHORT[x.s.day]} · ` : ""}${range(x.s)} · ${esc(x.s.teacher || x.g.teacher || "מרצה טרם נקבע")}</span></div>
-      ${x.bld ? `<span class="ml-bld">${esc(x.bld)}</span>` : ""}
+      ${x.bld ? `<span class="ml-bld"><b>${esc(x.bld)}</b>${x.s.room ? `<small>חדר ${esc(x.s.room)}</small>` : ""}</span>` : ""}
     </li>`;
   const sel = mapSelected && BLD.get(mapSelected);
   $("mapList").innerHTML = (sel ? `<div class="ml-sel"><b>בניין ${esc(sel.id)}</b>${sel.name ? `<span>${esc(sel.name)}</span>` : ""}
@@ -3370,10 +3373,11 @@ function setupMap() {
     mapVB = [mx - (mx - mapVB[0]) * k, my - (my - mapVB[1]) * k, w, mapVB[3] * k];
     apply();
   };
-  svg.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, { passive: false });
+  svg.addEventListener("wheel", (e) => { e.preventDefault(); $("mapHint").classList.add("gone"); zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY); }, { passive: false });
   const ptrs = new Map();
   let pinch = null, moved = false;
   svg.addEventListener("pointerdown", (e) => {
+    $("mapHint").classList.add("gone"); // the hint has done its job once the map is touched
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     moved = false;
     if (ptrs.size === 2) {

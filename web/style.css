@@ -1847,7 +1847,7 @@ body.on-map #mapView { display: block; }
 .m-campus { fill: var(--map-campus); stroke: var(--map-edge); stroke-width: 1.5; stroke-linejoin: round; }
 .m-road { fill: var(--map-road); fill-rule: evenodd; }
 .m-rail { fill: var(--map-rail); fill-rule: evenodd; }
-.m-names text { fill: var(--map-name); font-size: 11px; font-weight: 600; text-anchor: middle; letter-spacing: .02em; pointer-events: none; }
+.m-names text { fill: var(--map-name); font-size: 11px; font-weight: 600; text-anchor: middle; direction: rtl; unicode-bidi: plaintext; pointer-events: none; }
 .m-names .zone { font-size: 15px; font-weight: 800; opacity: .45; letter-spacing: .04em; }
 .bld rect { fill: var(--map-bld); stroke: var(--map-bld-line); stroke-width: 1; }
 .bld text { fill: var(--map-bld-ink); font-size: 8.5px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-variant-numeric: tabular-nums; }
@@ -1923,3 +1923,28 @@ body.on-map #mapView { display: block; }
   .hero-tools { width: 100%; order: -1; margin-inline-start: 0; justify-content: space-between; }
   .hero-inner > div:nth-child(2) { flex: 1 1 0; min-width: 0; }
 }
+
+/* map: walkways, road edges, a soft halo around buildings with classes */
+:root { --map-walk: #f6f3e8; --map-walk-edge: #e3dcc6; --map-road-edge: #c9d3cb; --map-campus: #cfe4cc; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --map-walk: #26342c; --map-walk-edge: #2f4036; --map-road-edge: #3a4740; --map-campus: #1a2a21; } }
+:root[data-theme="dark"] { --map-walk: #26342c; --map-walk-edge: #2f4036; --map-road-edge: #3a4740; --map-campus: #1a2a21; }
+#campusSvg .m-walk { fill: var(--map-walk); fill-rule: evenodd; stroke: var(--map-walk-edge); stroke-width: .6; stroke-linejoin: round; }
+#campusSvg .m-road { stroke: var(--map-road-edge); stroke-width: 1; stroke-linejoin: round; }
+#campusSvg .bld.lit rect.halo { opacity: .18; stroke: none; filter: none; }
+#campusSvg .bld.lit.sel rect.halo { opacity: .32; stroke: none; }
+
+.map-hint {
+  inset-inline: auto; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
+  padding: 6px 12px; border-radius: 99px; background: var(--surface); box-shadow: var(--shadow-sm); border: 1px solid var(--line);
+  transition: opacity .4s, transform .4s var(--ease);
+}
+.map-hint.gone { opacity: 0; transform: translate(-50%, 8px); }
+
+/* rooms: under each lit building and in the list */
+#campusSvg .bld text.rooms {
+  fill: var(--ink); font-size: 10px; font-weight: 700; direction: rtl; unicode-bidi: plaintext;
+  paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round;
+}
+.ml-bld { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.1; padding: 4px 10px; border-radius: 10px; }
+.ml-bld b { font-size: 13.5px; font-weight: 800; }
+.ml-bld small { font-size: 11px; font-weight: 600; opacity: .92; white-space: nowrap; }
